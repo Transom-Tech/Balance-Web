@@ -373,53 +373,57 @@ async function handleLogout(){
   if(state.realtimeSub){await sb.removeChannel(state.realtimeSub);state.realtimeSub=null;}
   await sb.auth.signOut();
 }
-function withTimeout(p,ms){return Promise.race([p,new Promise(function(_,rej){setTimeout(function(){rej(new Error('timeout'));},ms);})]);} let _authBusy=false;
-sb.auth.onAuthStateChange(async(event,session)=>{ if(_authBusy){dbg("Auth busy, skipping "+event);return;} _authBusy=true; try {
-  dbg('onAuthStateChange: '+event+' '+(session?.user?.email||'no-user'));
-  if(session?.user){
-    state.user=session.user;
-    dbg('Loading profile...');
-    let prof=null,profErr=null;try{const res=await withTimeout(sb.from('profiles').select('*').eq('id',session.user.id).single(),8000);prof=res.data;profErr=res.error;}catch(profTimeout){dbg('Profile query timeout/error (non-fatal): '+profTimeout.message,'#fbbf24');}
-    if(profErr) dbg('Profile ERROR: '+profErr.message+' code:'+profErr.code,'#f87171');
-    dbg('Profile: '+(prof?'found':'not found - will upsert'));
-    state.profile=prof||{id:session.user.id,email:session.user.email,name:session.user.user_metadata?.name};
-    if(!prof){dbg('Upserting profile...');await sb.from('profiles').upsert({id:session.user.id,email:session.user.email,name:state.profile.name},{onConflict:'id'});}
-    dbg('Getting name...');
-    const n=getName(state.profile);
-    dbg('Setting avatar n='+n);
-    const avatarEl=$('user-avatar');
-    dbg('user-avatar: '+(avatarEl?'found':'NOT FOUND'),avatarEl?'#4ade80':'#f87171');
-    if(avatarEl){avatarEl.textContent=getInitials(n);avatarEl.style.background=avatarColor(n);}
-    dbg('Hiding auth screen...');
-    $('auth-screen').style.display='none';
-    $('app-screen').style.display='flex';
-    dbg('Loading trips...');
-    await loadUserTrips();
-    dbg('Setting up realtime...');
-    setupRealtime();
-    // Auto-join from invite code (URL param or signup field)
-    const pendingCode=state._pendingInvite||new URLSearchParams(window.location.search).get('invite');
-    if(pendingCode){
-      state._pendingInvite=null;
-      await autoJoinByCode(pendingCode.trim().toUpperCase());
+function withTimeout(p,ms){return Promise.race([p,new Promise(function(_,rej){setTimeout(function(){rej(new Error('timeout'));},ms);})]);} // Handle authenticated user - show app and load data
+async function handleUser(user){
+  if(state.user&&state.user.id===user.id)return; // already handling this user
+  state.user=user;
+  // Use session data directly - fast, no DB query blocking
+  state.profile={id:user.id,email:user.email,name:user.user_metadata?.name||user.email.split('@')[0]};
+  const n=getName(state.profile);
+  const avatarEl=$('user-avatar');
+  if(avatarEl){avatarEl.textContent=getInitials(n);avatarEl.style.background=avatarColor(n);}
+  $('auth-screen').style.display='none';
+  $('app-screen').style.display='flex';
+  await loadUserTrips();
+  setupRealtime();
+  // Load full profile from DB in background (non-blocking - just updates display name)
+  sb.from('profiles').select('*').eq('id',user.id).single().then(function(res){
+    if(res.data){
+      state.profile=res.data;
+      const n2=getName(res.data);
+      const el=$('user-avatar');
+      if(el){el.textContent=getInitials(n2);el.style.background=avatarColor(n2);}
+      // Upsert to ensure profile exists
+    } else {
+      sb.from('profiles').upsert({id:user.id,email:user.email,name:state.profile.name},{onConflict:'id'}).then(function(){}).catch(function(){});
     }
-  } else {
-    state={user:null,profile:null,trips:[],currentTripId:null,members:[],expenses:[],splitMode:'equal',realtimeSub:null};
-    // Pre-fill invite code from URL on auth screen
-    const urlCode=new URLSearchParams(window.location.search).get('invite');
-    if(urlCode){
-      $('signup-invite').value=urlCode.trim().toUpperCase();
-      switchTab('signup');
-      toast('Sign up or log in to join the trip!','info',5000);
-    }
-    $('auth-screen').style.display='flex';
-    $('app-screen').style.display='none';
-  }
-}catch(authErr){
-  dbg('Auth error: '+authErr.message,'#f87171');
-  console.error('onAuthStateChange error:',authErr);
-}finally{_authBusy=false;}
-});
+  }).catch(function(){}); // profile load failure is non-fatal
+  // Auto-join from invite code
+  const pendingCode=state._pendingInvite||new URLSearchParams(window.location.search).get('invite');
+  if(pendingCode){state._pendingInvite=null;await autoJoinByCode(pendingCode.trim().toUpperCase());}
+}
+
+function handleSignOut(){
+  state={user:null,profile:null,trips:[],currentTripId:null,members:[],expenses:[],splitMode:'equal',realtimeSub:null};
+  const urlCode=new URLSearchParams(window.location.search).get('invite');
+  if(urlCode){$('signup-invite').value=urlCode.trim().toUpperCase();switchTab('signup');toast('Sign up or log in to join the trip!','info',5000);}
+  $('auth-screen').style.display='flex';
+  $('app-screen').style.display='none';
+}
+
+// Initialize: check existing session first, then listen for changes
+(async function initAuth(){
+  try{
+    const {data:{session}}=await sb.auth.getSession();
+    if(session&&session.user) await handleUser(session.user);
+    else handleSignOut();
+  }catch(e){handleSignOut();}
+  sb.auth.onAuthStateChange(async function(event,session){
+    if(event==='SIGNED_IN'&&session&&session.user) await handleUser(session.user);
+    else if(event==='SIGNED_OUT') handleSignOut();
+    else if(event==='TOKEN_REFRESHED'&&session&&session.user) state.user=session.user;
+  });
+})();
 
 async function autoJoinByCode(code){
   if(!code||!state.user)return;
