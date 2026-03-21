@@ -519,20 +519,41 @@ function renderExpenseList(){hide("no-trip-mid");show("expense-list-wrap");const
 state.expenses.forEach(function(exp){const payer=state.members.find(function(m){return m.user_id===exp.paid_by;});const payerName=payer?getName(payer.profile):"Unknown";const splits=exp.expense_splits||[];const myShare=splits.find(function(s){return s.user_id===state.user.id;});const perPerson=myShare?fmt(myShare.amount_owed,exp.currency||cur):"—";const card=document.createElement("div");card.className="expense-card";card.innerHTML="<div class=\"expense-emoji\">"+emojiFor(exp.description,exp.emoji)+"</div><div class=\"expense-info\"><div class=\"expense-desc\">"+exp.description+"</div><div class=\"expense-meta\">Paid by "+payerName+" &bull; "+exp.expense_date+"</div></div><div class=\"expense-right\"><div class=\"expense-amount\">"+fmt(exp.amount,exp.currency||cur)+"</div><div class=\"expense-per\">Your share: "+perPerson+"</div></div><button class=\"del-btn\" onclick=\"handleDeleteExpense('"+ exp.id+"')\" title=\"Delete\">&#215;</button><button class=\"edit-btn\" onclick=\"openEditExpense('"+ exp.id+"')\" title=\"Edit\">&#9998;</button>";list.appendChild(card);});}
 
 
-let _fxRatesUSD = null;
+// Historical exchange rates cache: {date: {currency: rate_vs_USD}}
+const _fxCache = {};
 
-async function ensureFxRates() {
-  if(_fxRatesUSD) return _fxRatesUSD;
+async function getHistoricalRates(date) {
+  if(_fxCache[date]) return _fxCache[date];
   try {
-    const res = await fetch('https://open.er-api.com/v6/latest/USD');
+    // frankfurter.app provides free historical rates
+    const url = 'https://api.frankfurter.app/' + date + '?from=USD';
+    const res = await fetch(url);
     const data = await res.json();
-    if(data.rates) { _fxRatesUSD = data.rates; return _fxRatesUSD; }
+    if(data.rates) {
+      // Add USD itself
+      data.rates['USD'] = 1;
+      _fxCache[date] = data.rates;
+      return data.rates;
+    }
   } catch(e) {}
   return null;
 }
 
+async function prefetchRatesForExpenses(expenses) {
+  // Get unique dates for non-base-currency expenses
+  const dates = [...new Set(
+    expenses
+      .filter(e => e.currency && e.currency !== 'USD')
+      .map(e => e.expense_date)
+  )];
+  // Fetch all in parallel
+  await Promise.all(dates.map(d => getHistoricalRates(d)));
+}
+
 function convertViaUSD(amount, fromCur, toCur, usdRates) {
   if(fromCur === toCur || !usdRates) return amount;
+  // usdRates has rates relative to USD (1 USD = X currency)
+  // So: 1 EUR = 1/usdRates['EUR'] USD
   const fromToUSD = fromCur === 'USD' ? 1 : (1 / (usdRates[fromCur] || 1));
   const usdToTo = toCur === 'USD' ? 1 : (usdRates[toCur] || 1);
   return amount * fromToUSD * usdToTo;
@@ -544,23 +565,27 @@ const cur=getCurrentCurrency();
 const paid={};const owed={};
 state.members.forEach(function(m){paid[m.user_id]=0;owed[m.user_id]=0;});
 // Fetch exchange rates for multi-currency conversion
-const usdRates = await ensureFxRates();
 const multiCurrency = state.expenses.some(function(e){return e.currency && e.currency !== cur;});
+// Prefetch all historical rates in parallel
+await prefetchRatesForExpenses(state.expenses);
 state.expenses.forEach(function(exp){
   const expCur = exp.currency || cur;
+  // Use historical rate for the date the expense was incurred
+  const usdRates = _fxCache[exp.expense_date] || null;
   const convertedAmt = convertViaUSD(Number(exp.amount), expCur, cur, usdRates);
   if(paid[exp.paid_by]!==undefined) paid[exp.paid_by] += convertedAmt;
-  const splitRate = expCur !== cur ? convertViaUSD(1, expCur, cur, usdRates) : 1;
+  const splitRate = (expCur !== cur && usdRates) ? convertViaUSD(1, expCur, cur, usdRates) : 1;
   (exp.expense_splits||[]).forEach(function(s){
     if(owed[s.user_id]!==undefined) owed[s.user_id] += Number(s.amount_owed) * splitRate;
   });
 });
 const total=state.expenses.reduce(function(s,e){
+  const usdRates = _fxCache[e.expense_date] || null;
   return s + convertViaUSD(Number(e.amount), e.currency||cur, cur, usdRates);
 },0);
 const fairShare=state.members.length>0?total/state.members.length:0;
 const list=$("balance-list");list.innerHTML="";
-if(multiCurrency&&usdRates){const note=document.createElement("div");note.style.cssText="font-size:11px;color:var(--text2);margin-bottom:8px;padding:6px 10px;background:var(--accent-dim);border-radius:8px;text-align:center;";note.textContent="💱 Amounts converted to "+cur+" at today's rates for settlement";list.appendChild(note);}
+if(multiCurrency&&usdRates){const note=document.createElement("div");note.style.cssText="font-size:11px;color:var(--text2);margin-bottom:8px;padding:6px 10px;background:var(--accent-dim);border-radius:8px;text-align:center;";note.textContent="💱 Amounts converted to "+cur+" at historical rates (date of expense)";list.appendChild(note);}
 const balances=[];
 state.members.forEach(function(m){
 const n=getName(m.profile);const p=paid[m.user_id]||0;const o=owed[m.user_id]||0;
