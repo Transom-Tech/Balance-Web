@@ -585,7 +585,7 @@ const total=state.expenses.reduce(function(s,e){
 },0);
 const fairShare=state.members.length>0?total/state.members.length:0;
 const list=$("balance-list");list.innerHTML="";
-if(multiCurrency&&usdRates){const note=document.createElement("div");note.style.cssText="font-size:11px;color:var(--text2);margin-bottom:8px;padding:6px 10px;background:var(--accent-dim);border-radius:8px;text-align:center;";note.textContent="💱 Amounts converted to "+cur+" at historical rates (date of expense)";list.appendChild(note);}
+if(multiCurrency){const note=document.createElement("div");note.style.cssText="font-size:11px;color:var(--text2);margin-bottom:8px;padding:6px 10px;background:var(--accent-dim);border-radius:8px;text-align:center;";note.textContent="💱 Amounts converted to "+cur+" at historical rates (date of expense)";list.appendChild(note);}
 const balances=[];
 state.members.forEach(function(m){
 const n=getName(m.profile);const p=paid[m.user_id]||0;const o=owed[m.user_id]||0;
@@ -676,7 +676,8 @@ const shareAmt=amt/splitMembers.length;
 const splits=splitMembers.map(function(m){return {user_id:m.user_id,amount_owed:Math.round(shareAmt*100)/100};});
 const {error:spErr}=await sb.rpc("insert_expense_splits",{p_expense_id:expId,p_splits:splits});
 if(spErr)throw spErr;
-await sb.from('expenses').update({emoji:_selectedEmoji}).eq('id',expId);
+const _saveCur = getCurrentCurrency();
+await sb.from('expenses').update({emoji:_selectedEmoji, currency:_saveCur}).eq('id',expId);
 toast("Expense added!","success");
 _selectedEmoji="🧾";const _eb=$("emoji-btn");if(_eb)_eb.textContent="🧾";$("exp-desc").value="";$("exp-amount").value="";$("exp-date").value=todayStr();
 await loadTripData();
