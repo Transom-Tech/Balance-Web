@@ -696,6 +696,8 @@ function openEditExpense(id){
   if(eb) eb.textContent = _editEmoji;
   document.getElementById('edit-desc').value = exp.description;
   document.getElementById('edit-amount').value = exp.amount;
+  const editCurEl = document.getElementById('edit-currency');
+  if(editCurEl) editCurEl.value = exp.currency || 'USD';
   document.getElementById('edit-date').value = exp.expense_date;
   // Fill paid by
   const pb = document.getElementById('edit-paidby');
@@ -747,7 +749,8 @@ async function handleSaveExpense(){
       amount: amt,
       expense_date: date,
       paid_by: paidBy,
-      emoji: _editEmoji
+      emoji: _editEmoji,
+      currency: (document.getElementById('edit-currency')||{value:'USD'}).value
     }).eq('id', _editingExpenseId);
     if(error) throw error;
     // Recalculate splits
@@ -858,7 +861,7 @@ o.addEventListener("click",function(e){if(e.target===o)o.classList.remove("open"
       </div>
       <input type="text" class="form-input" id="edit-desc" placeholder="Description" style="flex:1">
     </div>
-    <input type="number" class="form-input" id="edit-amount" placeholder="Amount" step="0.01" min="0" style="margin-bottom:10px">
+    <div style="display:flex;gap:8px;margin-bottom:10px"><select class="currency-select" id="edit-currency" style="border-radius:8px;border:1px solid var(--border2);height:44px;"><option value="USD">$ USD</option><option value="EUR">€ EUR</option><option value="GBP">£ GBP</option><option value="AUD">A$ AUD</option><option value="CAD">C$ CAD</option><option value="JPY">¥ JPY</option><option value="CHF">Fr CHF</option><option value="MXN">MX$ MXN</option><option value="THB">฿ THB</option><option value="ZAR">R ZAR</option><option value="INR">₹ INR</option><option value="BRL">R$ BRL</option></select><input type="number" class="form-input" id="edit-amount" placeholder="Amount" step="0.01" min="0" style="flex:1"></div>
     <input type="date" class="form-input" id="edit-date" style="margin-bottom:10px">
     <select class="form-input" id="edit-paidby" style="margin-bottom:10px"></select>
     <div class="modal-actions">
