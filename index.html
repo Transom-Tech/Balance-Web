@@ -158,6 +158,25 @@ input,select,textarea{font-family:inherit}
 .modal-box{background:var(--surface);border:1px solid var(--border2);border-radius:16px;padding:24px;width:90%;max-width:420px;max-height:90vh;overflow-y:auto}
 .modal-title{font-size:16px;font-weight:700;margin-bottom:16px;color:var(--text1)}
 .modal-actions{display:flex;gap:8px;margin-top:16px}
+
+@media(max-width:480px){
+.container{padding:0;max-width:100%;overflow-x:hidden;}
+.header{padding:10px;}
+.form-input{padding:16px;}
+.btn{padding:16px 24px;font-size:17px;}
+.btn-primary{padding:18px;}
+.trip-card{padding:16px;}
+.expense-card{padding:16px;padding-right:60px;}
+.balance-card{padding:16px;}
+.right-panel,.left-panel{padding:16px;}
+
+/* Reduce padding on small screens */
+.form-group{margin-bottom:14px}
+.panel-header{margin-bottom:16px;}
+
+/* Ensure minimum tap targets */
+.btn,.del-btn,.edit-btn{min-height:44px;min-width:44px;}
+}
 </style>
 </head>
 <body>
