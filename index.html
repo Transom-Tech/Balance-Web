@@ -156,7 +156,7 @@ input,select,textarea{font-family:inherit}
 .stat-label{font-size:9.5px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.6px}
 
 /* ── Desktop 3-column layout ───────────────────────────── */
-.main-content{display:grid;grid-template-columns:320px 1fr 268px;flex:1}
+.main-content{display:grid;grid-template-columns:300px 1fr 320px;flex:1}
 .panel{border-right:1px solid var(--border);overflow-y:auto;height:calc(100vh - var(--nav-h) - var(--stats-h))}
 .panel:last-child{border-right:none}
 .panel-header{
@@ -355,7 +355,7 @@ input,select,textarea{font-family:inherit}
 /* ══════════════════════════════════════════════
    MOBILE LAYOUT  (≤ 760px)
 ══════════════════════════════════════════════ */
-@media(max-width:1100px){.main-content{grid-template-columns:300px 1fr}}
+@media(max-width:1100px){.main-content{grid-template-columns:280px 1fr 300px}}
 
 @media(max-width:760px){
   /* Hide desktop middle/right panel columns; mobile uses tab-switching */
