@@ -1047,7 +1047,7 @@ const total=state.expenses.reduce(function(s,e){
   return s + convertViaUSD(Number(e.amount), e.currency||cur, cur, usdRates);
 },0);
 const fairShare=state.members.length>0?total/state.members.length:0;
-const list=$("balance-list");list.innerHTML="";
+list.innerHTML="";
 if(multiCurrency){const note=document.createElement("div");note.style.cssText="font-size:11px;color:var(--text2);margin-bottom:8px;padding:6px 10px;background:var(--accent-dim);border-radius:8px;text-align:center;";note.textContent="💱 Amounts converted to "+cur+" at historical rates (date of expense)";list.appendChild(note);}
 const balances=[];
 state.members.forEach(function(m){
