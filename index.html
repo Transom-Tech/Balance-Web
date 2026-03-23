@@ -271,12 +271,17 @@ input,select,textarea{font-family:inherit}
 .bbar-wrap{width:100%;height:3px;background:var(--bg4);border-radius:2px;overflow:hidden;margin-bottom:4px}
 .bbar{height:100%;border-radius:2px;transition:width .5s ease}
 .bsub{display:flex;justify-content:space-between;font-size:11px;color:var(--text3);font-family:var(--font-mono)}
-.settle-row{display:flex;align-items:center;gap:6px;padding:10px 15px;border-bottom:1px solid var(--border);font-size:12.5px;flex-wrap:nowrap;min-width:0}
+.settle-row{
+  display:grid;
+  grid-template-columns:1fr auto 1fr auto;
+  align-items:center;gap:6px;
+  padding:10px 15px;border-bottom:1px solid var(--border);font-size:12.5px;
+}
 .settle-row:last-child{border-bottom:none}
-.sfrom{font-weight:700;color:#fda4af;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1}
-.sarrow{color:var(--text3);flex-shrink:0;font-size:11px}
-.sto{font-weight:700;color:#86efac;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1}
-.samount{font-weight:700;background:var(--bg3);padding:3px 8px;border-radius:5px;font-size:12px;flex-shrink:0;font-family:var(--font-mono);margin-left:4px}
+.sfrom{font-weight:700;color:#fda4af;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left}
+.sarrow{color:var(--text3);font-size:11px;text-align:center}
+.sto{font-weight:700;color:#86efac;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left}
+.samount{font-weight:700;background:var(--bg3);padding:3px 8px;border-radius:5px;font-size:12px;font-family:var(--font-mono);white-space:nowrap;text-align:right}
 
 /* ── Split Warning Banner ──────────────────────────────── */
 .splits-warning{
@@ -972,23 +977,32 @@ async function handleRecalcAllSplits(){
   const btn=document.querySelector('#balance-wrap .panel-header .splits-recalc-btn');
   if(btn){btn.disabled=true;btn.textContent='Recalculating...';}
   try{
-    // Only recalculate expenses that use equal split (all members)
-    const equalExps=state.expenses.filter(function(exp){
-      const splits=exp.expense_splits||[];
-      return splits.length!==state.members.length||splits.some(function(s){
-        const expected=Number(exp.amount)/state.members.length;
-        return Math.abs(Number(s.amount_owed)-expected)>0.10;
-      });
-    });
-    if(!equalExps.length){toast('All splits are already up to date.','info');return;}
-    for(const exp of equalExps){
+    let count=0;
+    for(const exp of state.expenses){
       const shareAmt=Number(exp.amount)/state.members.length;
       const splits=state.members.map(function(m){return {user_id:m.user_id,amount_owed:Math.round(shareAmt*100)/100};});
-      await sb.rpc('insert_expense_splits',{p_expense_id:exp.id,p_splits:splits});
+      // Delete existing splits first, then insert fresh ones
+      await sb.from('expense_splits').delete().eq('expense_id',exp.id);
+      const {error}=await sb.from('expense_splits').insert(
+        splits.map(function(s){return {expense_id:exp.id,user_id:s.user_id,amount_owed:s.amount_owed};})
+      );
+      if(error)throw error;
+      count++;
     }
-    toast('Splits recalculated for '+equalExps.length+' expense'+(equalExps.length!==1?'s':'')+' across '+state.members.length+' members.','success');
+    toast('Splits recalculated for '+count+' expense'+(count!==1?'s':'')+' across '+state.members.length+' members.','success');
     await loadTripData();
-  }catch(e){toast('Error: '+e.message,'error');}
+  }catch(e){
+    // Fallback: try via RPC if direct table access is blocked by RLS
+    try{
+      for(const exp of state.expenses){
+        const shareAmt=Number(exp.amount)/state.members.length;
+        const splits=state.members.map(function(m){return {user_id:m.user_id,amount_owed:Math.round(shareAmt*100)/100};});
+        await sb.rpc('insert_expense_splits',{p_expense_id:exp.id,p_splits:splits});
+      }
+      toast('Splits recalculated for '+state.expenses.length+' expenses across '+state.members.length+' members.','success');
+      await loadTripData();
+    }catch(e2){toast('Error recalculating: '+e2.message+'. You may need a recalculate RPC — see console.','error');console.error('Recalc error:',e,e2);}
+  }
   finally{if(btn){btn.disabled=false;btn.textContent='↻ Recalculate';}}
 }
 
