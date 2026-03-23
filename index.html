@@ -272,16 +272,24 @@ input,select,textarea{font-family:inherit}
 .bbar{height:100%;border-radius:2px;transition:width .5s ease}
 .bsub{display:flex;justify-content:space-between;font-size:11px;color:var(--text3);font-family:var(--font-mono)}
 .settle-row{
-  display:grid;
-  grid-template-columns:1fr auto 1fr auto;
-  align-items:center;gap:6px;
-  padding:10px 15px;border-bottom:1px solid var(--border);font-size:12.5px;
+  display:flex;flex-direction:column;gap:8px;
+  margin:8px;padding:12px 14px;
+  background:var(--bg3);
+  border:1px solid var(--border2);
+  border-radius:var(--radius);
+  box-shadow:0 2px 10px rgba(0,0,0,0.35);
 }
-.settle-row:last-child{border-bottom:none}
-.sfrom{font-weight:700;color:#fda4af;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left}
-.sarrow{color:var(--text3);font-size:11px;text-align:center}
-.sto{font-weight:700;color:#86efac;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left}
-.samount{font-weight:700;background:var(--bg3);padding:3px 8px;border-radius:5px;font-size:12px;font-family:var(--font-mono);white-space:nowrap;text-align:right}
+.settle-row:last-child{margin-bottom:8px}
+.settle-row-top{display:flex;align-items:center;gap:7px;min-width:0}
+.sfrom{font-weight:700;color:#fda4af;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
+.sarrow{color:var(--text3);font-size:11px;flex-shrink:0}
+.sto{font-weight:700;color:#86efac;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
+.settle-row-bottom{
+  display:flex;align-items:center;justify-content:space-between;
+  padding-top:8px;border-top:1px solid var(--border);
+}
+.settle-label{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;font-weight:600}
+.samount{font-weight:700;background:var(--bg4);padding:4px 10px;border-radius:6px;font-size:14px;font-family:var(--font-mono);white-space:nowrap;color:var(--accent2);border:1px solid var(--border2)}
 
 /* ── Split Warning Banner ──────────────────────────────── */
 .splits-warning{
@@ -419,7 +427,7 @@ input,select,textarea{font-family:inherit}
 
   /* Balance cards */
   .balance-card{padding:12px 14px}
-  .settle-row{padding:10px 14px}
+  .settle-row{margin:6px;padding:11px 12px}
 }
 
 /* Desktop: hide the bottom tab bar */
@@ -950,7 +958,7 @@ const sl=$("settle-list");sl.innerHTML="";
 if(!txns.length){sl.innerHTML="<div style=\"padding:16px;text-align:center;color:var(--text3);font-size:13px\">\u2705 All settled up!</div>";return;}
 txns.forEach(function(t){
 const row=document.createElement("div");row.className="settle-row";
-row.innerHTML="<span class=\"sfrom\">"+t.from+"</span><span class=\"sarrow\">\u2192</span><span class=\"sto\">"+t.to+"</span><span class=\"samount\">"+fmt(t.amount,cur)+"</span>";
+row.innerHTML="<div class=\"settle-row-top\"><span class=\"sfrom\">"+t.from+"</span><span class=\"sarrow\">owes</span><span class=\"sto\">"+t.to+"</span></div><div class=\"settle-row-bottom\"><span class=\"settle-label\">Amount to transfer</span><span class=\"samount\">"+fmt(t.amount,cur)+"</span></div>";
 sl.appendChild(row);});}
 
 function checkSplitDrift(){
