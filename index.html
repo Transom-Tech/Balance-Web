@@ -24,8 +24,8 @@
 
 /* ── Reset ─────────────────────────────────────────────── */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-html{scroll-behavior:smooth;height:100%}
-body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;line-height:1.5;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;overscroll-behavior:none}
+html{scroll-behavior:smooth;height:100%;overflow-x:hidden}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;line-height:1.5;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;overscroll-behavior:none;overflow-x:hidden}
 button{cursor:pointer;font-family:inherit}
 input,select,textarea{font-family:inherit}
 ::-webkit-scrollbar{width:4px;height:4px}
@@ -121,6 +121,32 @@ input,select,textarea{font-family:inherit}
   border:2px solid transparent;transition:border-color .2s;
 }
 .avatar:hover{border-color:var(--accent2)}
+.avatar.active{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim)}
+
+/* ── Profile Dropdown ──────────────────────────────────── */
+.profile-menu-wrap{position:relative;flex-shrink:0}
+.profile-dropdown{
+  display:none;position:absolute;top:calc(100% + 10px);right:0;
+  background:var(--bg2);border:1px solid var(--border2);border-radius:var(--radius);
+  min-width:190px;box-shadow:var(--shadow-lg);z-index:500;
+  padding:6px;animation:fadeUp .18s ease;
+  overflow:hidden;
+}
+.profile-dropdown.open{display:block}
+.profile-dropdown-header{
+  padding:8px 11px 6px;font-size:11px;font-weight:700;
+  color:var(--text3);text-transform:uppercase;letter-spacing:.6px;
+}
+.profile-dropdown-divider{height:1px;background:var(--border);margin:4px 0}
+.profile-dropdown-item{
+  display:flex;align-items:center;gap:8px;width:100%;padding:9px 11px;
+  border:none;background:transparent;color:var(--text);font-size:13.5px;font-weight:500;
+  border-radius:var(--radius-xs);cursor:pointer;text-align:left;font-family:inherit;
+  transition:background .15s,color .15s;
+}
+.profile-dropdown-item:hover{background:var(--bg3);color:var(--accent2)}
+.profile-dropdown-danger{color:var(--danger) !important}
+.profile-dropdown-danger:hover{background:rgba(244,63,94,.1) !important;color:var(--danger) !important}
 
 /* ── Stats Bar ─────────────────────────────────────────── */
 .stats-bar{display:flex;background:var(--bg2);border-bottom:1px solid var(--border);height:var(--stats-h)}
@@ -189,11 +215,16 @@ input,select,textarea{font-family:inherit}
 .expense-list{padding:8px}
 .expense-card{
   background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);
-  padding:12px 14px;margin-bottom:6px;display:flex;align-items:flex-start;gap:11px;
+  padding:12px 14px;margin-bottom:6px;
   position:relative;transition:border-color .18s,box-shadow .18s;
 }
 .expense-card:hover{border-color:var(--border2);box-shadow:0 2px 12px rgba(0,0,0,0.3)}
-.expense-card:hover .del-btn,.expense-card:hover .edit-btn{opacity:1}
+.expense-card-main{display:flex;align-items:flex-start;gap:11px}
+.expense-card-actions{
+  display:none;align-items:center;justify-content:flex-end;gap:6px;
+  margin-top:9px;padding-top:9px;border-top:1px solid var(--border);
+}
+.expense-card:hover .expense-card-actions{display:flex}
 .expense-emoji{
   width:36px;height:36px;background:var(--accent-dim);border-radius:10px;
   display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0;
@@ -205,12 +236,19 @@ input,select,textarea{font-family:inherit}
 .expense-amount{font-size:15px;font-weight:700;font-family:var(--font-mono);letter-spacing:-.3px}
 .expense-per{font-size:11px;color:var(--text3);margin-top:2px}
 .del-btn{
-  position:absolute;top:8px;right:8px;opacity:0;transition:opacity .18s;
-  width:26px;height:26px;border-radius:6px;border:none;
-  background:rgba(244,63,94,.12);color:var(--danger);font-size:13px;
-  display:flex;align-items:center;justify-content:center;cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;gap:5px;
+  padding:5px 10px;border-radius:6px;border:1px solid rgba(244,63,94,.3);
+  background:rgba(244,63,94,.08);color:var(--danger);font-size:12px;font-weight:600;
+  cursor:pointer;transition:background .15s,border-color .15s;white-space:nowrap;
 }
-.del-btn:hover{background:rgba(244,63,94,.28)}
+.del-btn:hover{background:rgba(244,63,94,.22);border-color:rgba(244,63,94,.55)}
+.edit-btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:5px;
+  padding:5px 10px;border-radius:6px;border:1px solid var(--border2);
+  background:var(--bg3);color:var(--text2);font-size:12px;font-weight:600;
+  cursor:pointer;transition:background .15s,color .15s;white-space:nowrap;
+}
+.edit-btn:hover{background:var(--accent-dim);color:var(--accent2);border-color:rgba(91,141,238,.4)}
 
 /* ── Empty / No-Trip States ────────────────────────────── */
 .empty-state{text-align:center;padding:50px 20px;color:var(--text3)}
@@ -348,9 +386,9 @@ input,select,textarea{font-family:inherit}
 
   /* Expense cards: larger tap targets */
   .expense-card{padding:13px 14px;margin-bottom:8px}
-  .del-btn,.edit-btn{opacity:1;width:30px;height:30px;font-size:14px}
-  .del-btn{top:10px;right:8px}
-  .edit-btn{top:10px;right:42px}
+  /* Always show actions on mobile (no hover) */
+  .expense-card .expense-card-actions{display:flex}
+  .del-btn,.edit-btn{padding:7px 12px;font-size:12px}
 
   /* Modals: full-width on mobile */
   .modal,.modal-box{padding:20px;border-radius:18px;max-width:100%;width:100%}
@@ -406,10 +444,18 @@ input,select,textarea{font-family:inherit}
 <select class="nav-trip-select" id="trip-select" onchange="onTripChange()"><option value="">&#8212; Select a trip &#8212;</option></select>
 <div class="nav-actions">
 <span class="realtime-dot" title="Live"></span>
-<button class="btn btn-ghost btn-sm" onclick="openModal('join-modal')">&#128279; Join</button>
-<button class="btn btn-ghost btn-sm" onclick="openModal('new-trip-modal')">+ Trip</button>
-<button class="btn btn-ghost btn-sm" id="invite-btn" onclick="openInviteModal()" style="display:none">&#128228; Invite</button>
-<div class="avatar" id="user-avatar" onclick="handleLogout()" title="Sign out">?</div>
+<div class="profile-menu-wrap">
+  <div class="avatar" id="user-avatar" onclick="toggleProfileMenu(event)" title="Account">?</div>
+  <div class="profile-dropdown" id="profile-dropdown">
+    <div class="profile-dropdown-header" id="profile-dropdown-name">My Account</div>
+    <div class="profile-dropdown-divider"></div>
+    <button class="profile-dropdown-item" onclick="openModal('join-modal');closeProfileMenu()">&#128279; Join Trip</button>
+    <button class="profile-dropdown-item" onclick="openModal('new-trip-modal');closeProfileMenu()">&#43; Add Trip</button>
+    <button class="profile-dropdown-item" id="invite-dropdown-btn" onclick="openInviteModal();closeProfileMenu()" style="display:none">&#128228; Invite Members</button>
+    <div class="profile-dropdown-divider"></div>
+    <button class="profile-dropdown-item profile-dropdown-danger" onclick="handleLogout()">&#x2192; Sign Out</button>
+  </div>
+</div>
 </div></nav>
 <div class="stats-bar">
 <div class="stat-item"><div class="stat-value" id="stat-total">$0.00</div><div class="stat-label">Total Spent</div></div>
@@ -744,6 +790,7 @@ function renderNoTrip(){
   ['no-trip-left','no-trip-mid','no-trip-right'].forEach(show);
   ['expense-form-wrap','expense-list-wrap','balance-wrap'].forEach(hide);
   hide('invite-btn');
+  const invDD=document.getElementById('invite-dropdown-btn');if(invDD)invDD.style.display='none';
   $('stat-total').textContent='$0.00';$('stat-per').textContent='$0.00';$('stat-count').textContent='0';
 }
 async function loadTripData(){
@@ -754,6 +801,7 @@ async function loadTripData(){
   $('trip-currency-badge').textContent=trip.base_currency;
   $('currency-prefix') && ($('currency-prefix').textContent=sym);const cs=document.getElementById('currency-select');if(cs){cs.value=trip.base_currency;}
   show('invite-btn');
+  const _idd=document.getElementById('invite-dropdown-btn');if(_idd)_idd.style.display='';
   const {data:mems}=await sb.from('trip_members').select('*,profiles(*)').eq('trip_id',state.currentTripId);
   state.members=(mems||[]).map(m=>({...m,profile:m.profiles}));
   const {data:exps}=await sb.from('expenses').select('*,expense_splits(*)').eq('trip_id',state.currentTripId).order('expense_date',{ascending:false});
@@ -769,7 +817,7 @@ function updateShares(){if(state.splitMode!=="custom")return;const amt=parseFloa
 function renderMemberChecks(){const wrap=$("member-checks");wrap.innerHTML="";const cur=getCurrentCurrency();const amt=parseFloat($("exp-amount").value)||0;const share=state.members.length>0?amt/state.members.length:0;state.members.forEach(function(m){const n=getName(m.profile);const row=document.createElement("label");row.className="mcheck-row";row.innerHTML="<input type=\"checkbox\" value=\""+m.user_id+"\" checked onchange=\"updateShares()\"><span class=\"mname\">"+n+"</span><span class=\"mshare\" id=\"share-"+m.user_id+"\">"+fmt(share,cur)+"</span>";wrap.appendChild(row);});}
 function renderExpenseForm(){hide("no-trip-left");show("expense-form-wrap");_selectedEmoji="🧾";const _eb=$("emoji-btn");if(_eb)_eb.textContent="🧾";$("exp-date").value=todayStr();const pb=$("exp-paidby");pb.innerHTML="";state.members.forEach(function(m){const o=document.createElement("option");o.value=m.user_id;const n=getName(m.profile);o.textContent=n+(m.user_id===state.user.id?" (you)":"");if(m.user_id===state.user.id)o.selected=true;pb.appendChild(o);});renderMemberChecks();}
 function renderExpenseList(){hide("no-trip-mid");show("expense-list-wrap");const cur=getCurrentCurrency();const list=$("expense-list");list.innerHTML="";$("expense-count-badge").textContent=state.expenses.length+" expenses";if(!state.expenses.length){list.innerHTML="<div class=\"empty-state\"><div class=\"empty-icon\">\ud83d\udcb0</div><h3>No expenses yet</h3><p>Add your first expense using the form.</p></div>";return;}
-state.expenses.forEach(function(exp){const payer=state.members.find(function(m){return m.user_id===exp.paid_by;});const payerName=payer?getName(payer.profile):"Unknown";const splits=exp.expense_splits||[];const myShare=splits.find(function(s){return s.user_id===state.user.id;});const perPerson=myShare?fmt(myShare.amount_owed,exp.currency||cur):"—";const card=document.createElement("div");card.className="expense-card";card.innerHTML="<div class=\"expense-emoji\">"+emojiFor(exp.description,exp.emoji)+"</div><div class=\"expense-info\"><div class=\"expense-desc\">"+exp.description+"</div><div class=\"expense-meta\">Paid by "+payerName+" &bull; "+exp.expense_date+"</div></div><div class=\"expense-right\"><div class=\"expense-amount\">"+fmt(exp.amount,exp.currency||cur)+"</div><div class=\"expense-per\">Your share: "+perPerson+"</div></div><button class=\"del-btn\" onclick=\"handleDeleteExpense('"+ exp.id+"')\" title=\"Delete\">&#215;</button><button class=\"edit-btn\" onclick=\"openEditExpense('"+ exp.id+"')\" title=\"Edit\">&#9998;</button>";list.appendChild(card);});}
+state.expenses.forEach(function(exp){const payer=state.members.find(function(m){return m.user_id===exp.paid_by;});const payerName=payer?getName(payer.profile):"Unknown";const splits=exp.expense_splits||[];const myShare=splits.find(function(s){return s.user_id===state.user.id;});const perPerson=myShare?fmt(myShare.amount_owed,exp.currency||cur):"—";const card=document.createElement("div");card.className="expense-card";card.innerHTML="<div class=\"expense-card-main\"><div class=\"expense-emoji\">"+emojiFor(exp.description,exp.emoji)+"</div><div class=\"expense-info\"><div class=\"expense-desc\">"+exp.description+"</div><div class=\"expense-meta\">Paid by "+payerName+" &bull; "+exp.expense_date+"</div></div><div class=\"expense-right\"><div class=\"expense-amount\">"+fmt(exp.amount,exp.currency||cur)+"</div><div class=\"expense-per\">Your share: "+perPerson+"</div></div></div><div class=\"expense-card-actions\"><button class=\"edit-btn\" onclick=\"openEditExpense('"+exp.id+"')\">&#9998; Edit</button><button class=\"del-btn\" onclick=\"handleDeleteExpense('"+exp.id+"')\">&#215; Remove</button></div>";list.appendChild(card);});}
 
 
 // Historical exchange rates cache: {date: {currency: rate_vs_USD}}
@@ -1097,6 +1145,31 @@ if(state.currentTripId)loadTripData();
 })
 .subscribe();
 }
+function toggleProfileMenu(e){
+  e.stopPropagation();
+  const dd=document.getElementById('profile-dropdown');
+  const av=document.getElementById('user-avatar');
+  if(!dd)return;
+  const isOpen=dd.classList.contains('open');
+  dd.classList.toggle('open',!isOpen);
+  if(av)av.classList.toggle('active',!isOpen);
+  // Update header with user name
+  if(!isOpen&&state.profile){
+    const nameEl=document.getElementById('profile-dropdown-name');
+    if(nameEl)nameEl.textContent=getName(state.profile);
+  }
+}
+function closeProfileMenu(){
+  const dd=document.getElementById('profile-dropdown');
+  const av=document.getElementById('user-avatar');
+  if(dd)dd.classList.remove('open');
+  if(av)av.classList.remove('active');
+}
+document.addEventListener('click',function(e){
+  const wrap=document.querySelector('.profile-menu-wrap');
+  if(wrap&&!wrap.contains(e.target))closeProfileMenu();
+});
+
 document.addEventListener("DOMContentLoaded",function(){
 $("exp-date").value=todayStr();
 document.querySelectorAll(".modal-overlay").forEach(function(o){
