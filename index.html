@@ -271,10 +271,28 @@ input,select,textarea{font-family:inherit}
 .bbar-wrap{width:100%;height:3px;background:var(--bg4);border-radius:2px;overflow:hidden;margin-bottom:4px}
 .bbar{height:100%;border-radius:2px;transition:width .5s ease}
 .bsub{display:flex;justify-content:space-between;font-size:11px;color:var(--text3);font-family:var(--font-mono)}
-.settle-row{display:flex;align-items:center;gap:8px;padding:11px 15px;border-bottom:1px solid var(--border);font-size:13px;flex-wrap:wrap}
+.settle-row{display:flex;align-items:center;gap:6px;padding:10px 15px;border-bottom:1px solid var(--border);font-size:12.5px;flex-wrap:nowrap;min-width:0}
 .settle-row:last-child{border-bottom:none}
-.sfrom{font-weight:700;color:#fda4af}.sarrow{color:var(--text3)}.sto{font-weight:700;color:#86efac}
-.samount{margin-left:auto;font-weight:700;background:var(--bg3);padding:3px 8px;border-radius:5px;font-size:12px;flex-shrink:0;font-family:var(--font-mono)}
+.sfrom{font-weight:700;color:#fda4af;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1}
+.sarrow{color:var(--text3);flex-shrink:0;font-size:11px}
+.sto{font-weight:700;color:#86efac;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1}
+.samount{font-weight:700;background:var(--bg3);padding:3px 8px;border-radius:5px;font-size:12px;flex-shrink:0;font-family:var(--font-mono);margin-left:4px}
+
+/* ── Split Warning Banner ──────────────────────────────── */
+.splits-warning{
+  display:none;margin:8px;padding:9px 12px;
+  background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.35);
+  border-radius:var(--radius-sm);font-size:12px;color:#fcd34d;
+  align-items:center;gap:8px;
+}
+.splits-warning.visible{display:flex}
+.splits-warning-text{flex:1;line-height:1.4}
+.splits-recalc-btn{
+  flex-shrink:0;padding:4px 10px;border-radius:5px;border:1px solid rgba(245,158,11,0.45);
+  background:rgba(245,158,11,0.15);color:#fcd34d;font-size:11.5px;font-weight:600;
+  cursor:pointer;transition:background .15s;white-space:nowrap;font-family:inherit;
+}
+.splits-recalc-btn:hover{background:rgba(245,158,11,0.28)}
 
 /* ── Modals ────────────────────────────────────────────── */
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.78);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:1000;display:none;align-items:center;justify-content:center;padding:16px}
@@ -504,7 +522,8 @@ input,select,textarea{font-family:inherit}
 <div class="panel" id="right-panel">
 <div id="no-trip-right" class="no-trip"><div class="big-icon">&#9878;</div><h3>Balances</h3><p>Select a trip to see who owes what.</p></div>
 <div id="balance-wrap" style="display:none">
-<div class="panel-header"><span class="panel-title">Balances</span></div>
+<div class="panel-header"><span class="panel-title">Balances</span><button class="splits-recalc-btn" onclick="handleRecalcAllSplits()" title="Recalculate all equal splits based on current members">↻ Recalculate</button></div>
+<div class="splits-warning" id="splits-warning"><span class="splits-warning-text">⚠️ Split totals may be off — a member likely joined after some expenses were added.</span><button class="splits-recalc-btn" onclick="handleRecalcAllSplits()">Fix Now</button></div>
 <div id="balance-list"></div>
 <div class="sub-header">Settlements</div>
 <div id="settle-list"></div>
@@ -751,9 +770,10 @@ async function autoJoinByCode(code){
     }
     const {error:memErr}=await sb.from('trip_members').insert({trip_id:inv.trip_id,user_id:state.user.id,role:'member'});
     if(memErr)throw memErr;
-    toast('Successfully joined the trip!','success');
+    toast('Successfully joined the trip! Updating splits…','success');
     state.currentTripId=inv.trip_id;
     await loadUserTrips();
+    await handleRecalcAllSplits();
     // Clean up URL
     window.history.replaceState({},'',window.location.pathname);
   }catch(e){
@@ -898,7 +918,8 @@ const barPct=total>0?Math.min(100,Math.abs(p/total)*100):0;
 const barColor=net>0.005?"var(--success)":net<-0.005?"var(--danger)":"var(--text3)";
 card.innerHTML="<div class=\"brow\"><div class=\"bavatar\" style=\"background:"+avatarColor(n)+"\">"+getInitials(n)+"</div><span class=\"bname\">"+n+"</span><span class=\"bnet "+cls+"\">"+netStr+"</span></div>"+"<div class=\"bbar-wrap\"><div class=\"bbar\" style=\"width:"+barPct+"%;background:"+barColor+"\"></div></div>"+"<div class=\"bsub\"><span>Paid: "+fmt(p,cur)+"</span><span>Share: "+fmt(o,cur)+"</span></div>";
 list.appendChild(card);});
-renderSettlements(balances,cur);}
+renderSettlements(balances,cur);
+checkSplitDrift();}
 function calcSettlements(balances){
 const cred=[],debt=[];
 balances.forEach(function(b){
@@ -926,6 +947,50 @@ txns.forEach(function(t){
 const row=document.createElement("div");row.className="settle-row";
 row.innerHTML="<span class=\"sfrom\">"+t.from+"</span><span class=\"sarrow\">\u2192</span><span class=\"sto\">"+t.to+"</span><span class=\"samount\">"+fmt(t.amount,cur)+"</span>";
 sl.appendChild(row);});}
+
+function checkSplitDrift(){
+  // Compare stored split totals vs expected (total / memberCount)
+  if(!state.expenses.length||!state.members.length)return;
+  const cur=getCurrentCurrency();
+  const memberCount=state.members.length;
+  let hasDrift=false;
+  state.expenses.forEach(function(exp){
+    const splits=exp.expense_splits||[];
+    // Only check equal-split expenses (split count matches member count, or is off)
+    if(splits.length>0&&splits.length!==memberCount){hasDrift=true;return;}
+    if(splits.length===0)return;
+    const storedTotal=splits.reduce(function(s,sp){return s+Number(sp.amount_owed);},0);
+    const expAmt=Number(exp.amount);
+    if(Math.abs(storedTotal-expAmt)>0.10){hasDrift=true;}
+  });
+  const banner=document.getElementById('splits-warning');
+  if(banner){banner.classList.toggle('visible',hasDrift);}
+}
+
+async function handleRecalcAllSplits(){
+  if(!state.currentTripId||!state.members.length)return;
+  const btn=document.querySelector('#balance-wrap .panel-header .splits-recalc-btn');
+  if(btn){btn.disabled=true;btn.textContent='Recalculating...';}
+  try{
+    // Only recalculate expenses that use equal split (all members)
+    const equalExps=state.expenses.filter(function(exp){
+      const splits=exp.expense_splits||[];
+      return splits.length!==state.members.length||splits.some(function(s){
+        const expected=Number(exp.amount)/state.members.length;
+        return Math.abs(Number(s.amount_owed)-expected)>0.10;
+      });
+    });
+    if(!equalExps.length){toast('All splits are already up to date.','info');return;}
+    for(const exp of equalExps){
+      const shareAmt=Number(exp.amount)/state.members.length;
+      const splits=state.members.map(function(m){return {user_id:m.user_id,amount_owed:Math.round(shareAmt*100)/100};});
+      await sb.rpc('insert_expense_splits',{p_expense_id:exp.id,p_splits:splits});
+    }
+    toast('Splits recalculated for '+equalExps.length+' expense'+(equalExps.length!==1?'s':'')+' across '+state.members.length+' members.','success');
+    await loadTripData();
+  }catch(e){toast('Error: '+e.message,'error');}
+  finally{if(btn){btn.disabled=false;btn.textContent='↻ Recalculate';}}
+}
 
 
 function buildEmojiGrid(){
@@ -1106,9 +1171,11 @@ if(already){toast("You are already in this trip.","info");closeModal("join-modal
 const {error:memErr}=await sb.from("trip_members").insert({trip_id:inv.trip_id,user_id:state.user.id,role:"member"});
 if(memErr)throw memErr;
 closeModal("join-modal");$("join-code").value="";
-toast("Joined trip!","success");
+toast("Joined trip! Updating splits for all members…","success");
 state.currentTripId=inv.trip_id;
 await loadUserTrips();
+// Auto-recalculate all equal splits now that member count changed
+await handleRecalcAllSplits();
 }catch(e){toast("Error: "+e.message,"error");}
 btn.disabled=false;btn.innerHTML="Join Trip";}
 
