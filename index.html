@@ -547,7 +547,7 @@ input,select,textarea{font-family:inherit}
 </div>
 <div class="main-content">
 <div class="panel mob-active" id="left-panel">
-<div id="no-trip-left" class="no-trip"><div class="big-icon">✈️</div><h3>Ready to split?</h3><p>Create a new trip or join one with an invite code.</p><div class="no-trip-actions"><button class="no-trip-btn" onclick="openModal('new-trip-modal')">+ New Trip</button><button class="no-trip-btn" onclick="openModal('join-modal')">🔗 Join Trip</button></div></div>
+<div id="no-trip-left" class="no-trip"><div class="big-icon">✈️</div><h3>Ready to split?</h3><p>Create a new trip or join one with an invite code.</p><div class="no-trip-actions"><button class="no-trip-btn" onclick="openModal('new-trip-modal')">+ New Trip</button><button class="no-trip-btn" onclick="openModal('join-modal')">🔗 Join Trip</button></div><p id="wrong-account-hint" style="display:none;margin-top:18px;font-size:12px;color:var(--text3)">Wrong account? <a href="#" onclick="handleLogout();return false;" style="color:var(--accent2);text-decoration:none">Sign out</a></p></div>
 <div id="expense-form-wrap" style="display:none">
 <div class="panel-header"><span class="panel-title">Log Expense</span><span id="trip-currency-badge" style="font-size:11px;font-weight:700;color:var(--accent2)"></span></div>
 <div class="form-section"><div class="section-label">Description</div>
@@ -925,7 +925,13 @@ async function autoJoinByCode(code){
 async function loadUserTrips(){
   dbg('loadUserTrips called');
   const {data:memberships}=await sb.from('trip_members').select('trip_id').eq('user_id',state.user.id);
-  if(!memberships||!memberships.length){state.trips=[];renderTripSelect();return;}
+  if(!memberships||!memberships.length){
+    state.trips=[];renderTripSelect();
+    // Show a "wrong account?" recovery hint after 3s in case this is a hijacked session
+    const hint=$('wrong-account-hint');
+    if(hint) setTimeout(function(){if(!state.trips.length)hint.style.display='block';},3000);
+    return;
+  }
   const ids=memberships.map(m=>m.trip_id);
   const {data:trips}=await sb.from('trips').select('*').in('id',ids).eq('archived',false).order('created_at',{ascending:false});
   state.trips=trips||[];
