@@ -878,10 +878,11 @@ let _inPasswordRecovery=false;
     }
     if(event==='SIGNED_IN'){
       if(_inPasswordRecovery) return;
-      // Guard against cross-tab session hijacking: when a NEW user signs up in
-      // any tab, Supabase writes their session to localStorage and fires SIGNED_IN
-      // in ALL open tabs. If we already have a different user loaded, ignore it.
-      if(state.user&&session&&state.user.id!==session.user.id) return;
+      // SIGNED_IN fires on ALL tabs whenever any tab refreshes a token or a new
+      // tab initializes — even for the same user. If this tab already has a user
+      // loaded, ignore it completely. handleUser will only be needed on a fresh
+      // login (state.user is null). INITIAL_SESSION handles the page-load case.
+      if(state.user) return;
       if(session&&session.user) await handleUser(session.user);
     }
     else if(event==='SIGNED_OUT'){_inPasswordRecovery=false;handleSignOut();}
