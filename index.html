@@ -1285,8 +1285,57 @@ btn.disabled=false;btn.innerHTML="&#43; Add Expense";}
 
 let _editingExpenseId = null;
 let _editEmoji = '🧾';
+let _editSplitMode = 'equal';
 
-function openEditExpense(id){
+function setEditSplit(mode){
+  _editSplitMode = mode;
+  const eqBtn = document.getElementById('edit-split-equal-btn');
+  const cuBtn = document.getElementById('edit-split-custom-btn');
+  if(eqBtn) eqBtn.classList.toggle('active', mode === 'equal');
+  if(cuBtn) cuBtn.classList.toggle('active', mode === 'custom');
+  const wrap = document.getElementById('edit-custom-members-wrap');
+  if(mode === 'custom'){
+    if(wrap) wrap.style.display = '';
+    renderEditMemberChecks();
+  } else {
+    if(wrap) wrap.style.display = 'none';
+  }
+}
+
+function renderEditMemberChecks(selectedIds){
+  const wrap = document.getElementById('edit-member-checks');
+  if(!wrap) return;
+  wrap.innerHTML = '';
+  const amt = parseFloat(document.getElementById('edit-amount').value) || 0;
+  const cur = (document.getElementById('edit-currency') || {value:'USD'}).value;
+  const checkedIds = selectedIds || state.members.map(function(m){ return m.user_id; });
+  const share = checkedIds.length > 0 ? amt / checkedIds.length : 0;
+  state.members.forEach(function(m){
+    const n = getName(m.profile);
+    const isChecked = checkedIds.indexOf(m.user_id) > -1;
+    const row = document.createElement('label');
+    row.className = 'mcheck-row';
+    row.innerHTML = '<input type="checkbox" value="' + m.user_id + '"' + (isChecked ? ' checked' : '') + ' onchange="updateEditShares()"><span class="mname">' + n + '</span><span class="mshare" id="edit-share-' + m.user_id + '">' + fmt(isChecked ? share : 0, cur) + '</span>';
+    wrap.appendChild(row);
+  });
+}
+
+function updateEditShares(){
+  const amt = parseFloat(document.getElementById('edit-amount').value) || 0;
+  const cur = (document.getElementById('edit-currency') || {value:'USD'}).value;
+  const checks = [...document.querySelectorAll('#edit-member-checks input:checked')];
+  const share = checks.length > 0 ? amt / checks.length : 0;
+  checks.forEach(function(cb){
+    const el = document.getElementById('edit-share-' + cb.value);
+    if(el) el.textContent = fmt(share, cur);
+  });
+  document.querySelectorAll('#edit-member-checks input:not(:checked)').forEach(function(cb){
+    const el = document.getElementById('edit-share-' + cb.value);
+    if(el) el.textContent = fmt(0, cur);
+  });
+}
+
+async function openEditExpense(id){
   const exp = state.expenses.find(e => e.id === id);
   if(!exp) return;
   _editingExpenseId = id;
@@ -1309,6 +1358,18 @@ function openEditExpense(id){
     if(m.user_id === exp.paid_by) o.selected = true;
     pb.appendChild(o);
   });
+  // Load existing splits to determine split mode
+  _editSplitMode = 'equal';
+  let splitIds = state.members.map(function(m){ return m.user_id; });
+  try{
+    const {data: splits} = await sb.from('expense_splits').select('user_id').eq('expense_id', id);
+    if(splits && splits.length > 0 && splits.length < state.members.length){
+      _editSplitMode = 'custom';
+      splitIds = splits.map(function(s){ return s.user_id; });
+    }
+  }catch(e){ /* default to equal */ }
+  setEditSplit(_editSplitMode);
+  if(_editSplitMode === 'custom') renderEditMemberChecks(splitIds);
   document.getElementById('edit-expense-modal').classList.add('open');
 }
 
@@ -1338,9 +1399,21 @@ async function handleSaveExpense(){
   const amt = parseFloat(document.getElementById('edit-amount').value);
   const date = document.getElementById('edit-date').value;
   const paidBy = document.getElementById('edit-paidby').value;
+  const cur = (document.getElementById('edit-currency')||{value:'USD'}).value;
   if(!desc){ toast('Please enter a description.','error'); return; }
   if(!amt || amt <= 0){ toast('Please enter a valid amount.','error'); return; }
   if(!date){ toast('Please select a date.','error'); return; }
+  // Build splits based on split mode
+  let splits;
+  if(_editSplitMode === 'custom'){
+    const checked = [...document.querySelectorAll('#edit-member-checks input:checked')];
+    if(checked.length === 0){ toast('Please select at least one person.','error'); return; }
+    const share = Math.round((amt / checked.length) * 100) / 100;
+    splits = checked.map(function(cb){ return {user_id: cb.value, amount_owed: share}; });
+  } else {
+    const shareAmt = Math.round((amt / state.members.length) * 100) / 100;
+    splits = state.members.map(function(m){ return {user_id: m.user_id, amount_owed: shareAmt}; });
+  }
   const saveBtn = document.querySelector('#edit-expense-modal .btn-primary');
   if(saveBtn){ saveBtn.disabled = true; saveBtn.textContent = 'Saving...'; }
   try{
@@ -1350,12 +1423,9 @@ async function handleSaveExpense(){
       expense_date: date,
       paid_by: paidBy,
       emoji: _editEmoji,
-      currency: (document.getElementById('edit-currency')||{value:'USD'}).value
+      currency: cur
     }).eq('id', _editingExpenseId);
     if(error) throw error;
-    // Recalculate splits
-    const shareAmt = amt / state.members.length;
-    const splits = state.members.map(function(m){ return {user_id: m.user_id, amount_owed: Math.round(shareAmt*100)/100}; });
     await sb.rpc('insert_expense_splits', {p_expense_id: _editingExpenseId, p_splits: splits});
     toast('Expense updated!', 'success');
     closeEditModal();
@@ -1520,9 +1590,20 @@ o.addEventListener("click",function(e){if(e.target===o)o.classList.remove("open"
       </div>
       <input type="text" class="form-input" id="edit-desc" placeholder="Description" style="flex:1">
     </div>
-    <div style="display:flex;gap:8px;margin-bottom:10px"><select class="currency-select" id="edit-currency" style="border-radius:8px;border:1px solid var(--border2);height:44px;"><option value="USD">$ USD</option><option value="EUR">€ EUR</option><option value="GBP">£ GBP</option><option value="AUD">A$ AUD</option><option value="CAD">C$ CAD</option><option value="JPY">¥ JPY</option><option value="CHF">Fr CHF</option><option value="MXN">MX$ MXN</option><option value="THB">฿ THB</option><option value="ZAR">R ZAR</option><option value="INR">₹ INR</option><option value="BRL">R$ BRL</option></select><input type="number" class="form-input" id="edit-amount" placeholder="Amount" step="0.01" min="0" style="flex:1"></div>
+    <div style="display:flex;gap:8px;margin-bottom:10px"><select class="currency-select" id="edit-currency" style="border-radius:8px;border:1px solid var(--border2);height:44px;"><option value="USD">$ USD</option><option value="EUR">€ EUR</option><option value="GBP">£ GBP</option><option value="AUD">A$ AUD</option><option value="CAD">C$ CAD</option><option value="JPY">¥ JPY</option><option value="CHF">Fr CHF</option><option value="MXN">MX$ MXN</option><option value="THB">฿ THB</option><option value="ZAR">R ZAR</option><option value="INR">₹ INR</option><option value="BRL">R$ BRL</option></select><input type="number" class="form-input" id="edit-amount" placeholder="Amount" step="0.01" min="0" style="flex:1" oninput="if(_editSplitMode==='custom')updateEditShares()"></div>
     <input type="date" class="form-input" id="edit-date" style="margin-bottom:10px">
     <select class="form-input" id="edit-paidby" style="margin-bottom:10px"></select>
+    <div style="margin-bottom:6px">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:6px;font-weight:500">Split</div>
+      <div class="split-toggle">
+        <button class="split-btn" id="edit-split-equal-btn" onclick="setEditSplit('equal')" type="button">⚙ Everyone Equally</button>
+        <button class="split-btn" id="edit-split-custom-btn" onclick="setEditSplit('custom')" type="button">✎ Custom</button>
+      </div>
+    </div>
+    <div id="edit-custom-members-wrap" style="display:none;margin-bottom:6px">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:6px;font-weight:500">Split between</div>
+      <div id="edit-member-checks"></div>
+    </div>
     <div class="modal-actions">
       <button class="btn btn-primary" onclick="handleSaveExpense()">Save Changes</button>
       <button class="btn" onclick="closeEditModal()" style="background:var(--bg2)">Cancel</button>
