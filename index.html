@@ -868,6 +868,10 @@ let _inPasswordRecovery=false;
     }
     if(event==='SIGNED_IN'){
       if(_inPasswordRecovery) return;
+      // Guard against cross-tab session hijacking: when a NEW user signs up in
+      // any tab, Supabase writes their session to localStorage and fires SIGNED_IN
+      // in ALL open tabs. If we already have a different user loaded, ignore it.
+      if(state.user&&session&&state.user.id!==session.user.id) return;
       if(session&&session.user) await handleUser(session.user);
     }
     else if(event==='SIGNED_OUT'){_inPasswordRecovery=false;handleSignOut();}
@@ -896,6 +900,9 @@ async function autoJoinByCode(code){
     toast('Successfully joined the trip! Updating splits…','success');
     state.currentTripId=inv.trip_id;
     await loadUserTrips();
+    // loadUserTrips skips loadTripData when currentTripId is already set,
+    // so explicitly load trip data so the new member sees the trip immediately
+    await loadTripData();
     await handleRecalcAllSplits();
     // Clean up URL
     window.history.replaceState({},'',window.location.pathname);
