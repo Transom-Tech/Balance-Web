@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<title>Balance – Fix Sign In</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#07090f;color:#dde3ef;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+  .card{background:#0e1118;border:1px solid rgba(255,255,255,0.12);border-radius:20px;padding:36px 28px;max-width:360px;width:100%;text-align:center}
+  .icon{font-size:48px;margin-bottom:16px}
+  h1{font-size:20px;font-weight:700;margin-bottom:8px}
+  p{color:#8a93a8;font-size:14px;line-height:1.6;margin-bottom:24px}
+  .btn{display:block;width:100%;padding:14px;background:#5b8dee;color:#fff;border:none;border-radius:10px;font-size:16px;font-weight:600;cursor:pointer;text-decoration:none}
+  .status{margin-top:16px;font-size:13px;color:#8a93a8;min-height:20px}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="icon">⚖️</div>
+  <h1>Let's get you back in</h1>
+  <p>Tap the button below to clear your session and sign in again. Your trips and data are safe.</p>
+  <button class="btn" onclick="fixSession()">Fix &amp; Sign In</button>
+  <div class="status" id="status"></div>
+</div>
+<script>
+function fixSession(){
+  document.getElementById('status').textContent = 'Clearing session…';
+  try{ localStorage.clear(); }catch(e){}
+  try{ sessionStorage.clear(); }catch(e){}
+  // Clear any Supabase-specific keys just in case
+  try{
+    Object.keys(localStorage).forEach(function(k){
+      if(k.indexOf('supabase')>-1||k.indexOf('sb-')>-1) localStorage.removeItem(k);
+    });
+  }catch(e){}
+  setTimeout(function(){
+    window.location.href = './index.html?t=' + Date.now();
+  }, 500);
+}
+</script>
+</body>
+</html>
