@@ -948,16 +948,20 @@ async function autoJoinByCode(code){
 }
 async function loadUserTrips(){
   dbg('loadUserTrips called');
-  const {data:memberships}=await sb.from('trip_members').select('trip_id').eq('user_id',state.user.id);
+  const {data:memberships,error:mErr}=await sb.from('trip_members').select('trip_id').eq('user_id',state.user.id);
+  // Throw on real errors so the caller's try/catch handles it — don't treat a
+  // network/auth failure as "user has no trips" which causes the stuck blank state.
+  if(mErr) throw mErr;
   if(!memberships||!memberships.length){
     state.trips=[];renderTripSelect();
-    // Show a "wrong account?" recovery hint after 3s in case this is a hijacked session
+    // Show a "wrong account?" recovery hint after 1s in case this is a hijacked session
     const hint=$('wrong-account-hint');
     if(hint) setTimeout(function(){if(!state.trips.length)hint.style.display='block';},1000);
     return;
   }
   const ids=memberships.map(m=>m.trip_id);
-  const {data:trips}=await sb.from('trips').select('*').in('id',ids).eq('archived',false).order('created_at',{ascending:false});
+  const {data:trips,error:tErr}=await sb.from('trips').select('*').in('id',ids).eq('archived',false).order('created_at',{ascending:false});
+  if(tErr) throw tErr;
   state.trips=trips||[];
   renderTripSelect();
   if(state.trips.length&&!state.currentTripId){
@@ -1219,21 +1223,14 @@ async function handleRecalcAllSplits(){
   if(!state.currentTripId||!state.members.length)return;
   const btn=document.querySelector('#balance-wrap .panel-header .splits-recalc-btn');
   if(btn){btn.disabled=true;btn.textContent='Recalculating...';}
-  // Helper: detect intentional custom splits — fewer people than the full group
-  // but totals already add up correctly. Leave these alone.
-  function isCustomSplit(exp){
-    const splits=exp.expense_splits||[];
-    if(splits.length===0||splits.length>=state.members.length) return false;
-    const storedTotal=splits.reduce(function(s,sp){return s+Number(sp.amount_owed);},0);
-    return Math.abs(storedTotal-Number(exp.amount))<=0.10;
-  }
+  // Recalculate ALL expenses as equal splits across all current members.
+  // This is intentionally a full reset — it fixes stale splits when new members
+  // join. Custom per-expense splits can be restored via Edit Expense afterwards.
   try{
     let count=0;
     for(const exp of state.expenses){
-      if(isCustomSplit(exp)) continue; // don't touch intentional custom splits
       const shareAmt=Number(exp.amount)/state.members.length;
       const splits=state.members.map(function(m){return {user_id:m.user_id,amount_owed:Math.round(shareAmt*100)/100};});
-      // Delete existing splits first, then insert fresh ones
       await sb.from('expense_splits').delete().eq('expense_id',exp.id);
       const {error}=await sb.from('expense_splits').insert(
         splits.map(function(s){return {expense_id:exp.id,user_id:s.user_id,amount_owed:s.amount_owed};})
@@ -1241,26 +1238,19 @@ async function handleRecalcAllSplits(){
       if(error)throw error;
       count++;
     }
-    if(count>0){
-      toast('Splits recalculated for '+count+' expense'+(count!==1?'s':'')+' across '+state.members.length+' members.','success');
-    }else{
-      toast('All splits are correct — nothing to fix.','success');
-    }
+    toast('Splits recalculated for '+count+' expense'+(count!==1?'s':'')+' across '+state.members.length+' members.','success');
     await loadTripData();
   }catch(e){
     // Fallback: try via RPC if direct table access is blocked by RLS
     try{
-      let count=0;
       for(const exp of state.expenses){
-        if(isCustomSplit(exp)) continue;
         const shareAmt=Number(exp.amount)/state.members.length;
         const splits=state.members.map(function(m){return {user_id:m.user_id,amount_owed:Math.round(shareAmt*100)/100};});
         await sb.rpc('insert_expense_splits',{p_expense_id:exp.id,p_splits:splits});
-        count++;
       }
-      toast('Splits recalculated for '+count+' expenses across '+state.members.length+' members.','success');
+      toast('Splits recalculated for '+state.expenses.length+' expenses across '+state.members.length+' members.','success');
       await loadTripData();
-    }catch(e2){toast('Error recalculating: '+e2.message+'. You may need a recalculate RPC — see console.','error');console.error('Recalc error:',e,e2);}
+    }catch(e2){toast('Error recalculating: '+e2.message,'error');console.error('Recalc error:',e,e2);}
   }
   finally{if(btn){btn.disabled=false;btn.textContent='↻ Recalculate';}}
 }
