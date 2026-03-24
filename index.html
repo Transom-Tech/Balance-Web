@@ -841,21 +841,12 @@ function handleSignOut(){
   $('app-screen').style.display='none';
 }
 
-// Initialize: check existing session first, then listen for changes
+// Initialize: rely solely on onAuthStateChange (handles both normal and recovery flows)
+// INITIAL_SESSION fires first, PASSWORD_RECOVERY fires synchronously right after it.
+// We defer the INITIAL_SESSION handler by one tick so PASSWORD_RECOVERY can set the
+// flag before we decide whether to load the app.
 let _inPasswordRecovery=false;
-(async function initAuth(){
-  // Detect recovery link via URL hash before doing anything else
-  const hashParams=new URLSearchParams(window.location.hash.replace('#',''));
-  if(hashParams.get('type')==='recovery'){_inPasswordRecovery=true;}
-  try{
-    const {data:{session}}=await sb.auth.getSession();
-    if(_inPasswordRecovery){
-      // Don't load the app — wait for PASSWORD_RECOVERY event to open modal
-      $('auth-screen').style.display='flex';
-      $('app-screen').style.display='none';
-    } else if(session&&session.user) await handleUser(session.user);
-    else handleSignOut();
-  }catch(e){handleSignOut();}
+(function initAuth(){
   sb.auth.onAuthStateChange(async function(event,session){
     if(event==='PASSWORD_RECOVERY'){
       _inPasswordRecovery=true;
@@ -864,8 +855,19 @@ let _inPasswordRecovery=false;
       openModal('reset-password-modal');
       return;
     }
+    if(event==='INITIAL_SESSION'){
+      // Defer one tick: PASSWORD_RECOVERY fires synchronously right after this,
+      // so by the time setTimeout runs the flag will already be set if needed.
+      const snap=session;
+      setTimeout(async function(){
+        if(_inPasswordRecovery) return;
+        if(snap&&snap.user) await handleUser(snap.user);
+        else handleSignOut();
+      },0);
+      return;
+    }
     if(event==='SIGNED_IN'){
-      if(_inPasswordRecovery) return; // block until password is reset
+      if(_inPasswordRecovery) return;
       if(session&&session.user) await handleUser(session.user);
     }
     else if(event==='SIGNED_OUT'){_inPasswordRecovery=false;handleSignOut();}
