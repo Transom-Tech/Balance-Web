@@ -821,9 +821,26 @@ async function handleUser(user){
   try{
     await loadUserTrips();
   }catch(e){
-    // Network/temporary error — don't wipe the session, just show a retry toast
     console.error('loadUserTrips failed:',e);
-    toast('Could not load trips — check your connection and refresh.','error');
+    // Show the no-trip panel so the user has a visible recovery path.
+    // If it looks like an auth/token error, wipe the session automatically.
+    const msg=(e&&e.message||'').toLowerCase();
+    const isAuthErr=msg.includes('jwt')||msg.includes('token')||msg.includes('401')||msg.includes('unauthorized')||(e&&e.status===401);
+    if(isAuthErr){
+      try{localStorage.clear();}catch(_){}
+      location.reload();
+      return;
+    }
+    state.trips=[];
+    renderTripSelect();
+    renderNoTrip();
+    // Show the "sign in again" hint immediately rather than after a delay
+    const hint=$('wrong-account-hint');
+    if(hint){
+      hint.style.display='block';
+      const hp=hint.querySelector('p');
+      if(hp) hp.textContent='Could not load your trips — tap below to reload.';
+    }
   }
   setupRealtime();
   // Load full profile from DB in background (non-blocking - just updates display name)
@@ -914,6 +931,13 @@ let _inPasswordRecovery=false;
     }).catch(function(){});
   });
 })();
+
+// Safari (and some other browsers) use a back-forward cache (bfcache) that can
+// restore a broken page state instead of truly reloading. Detect this and force
+// a real reload so the auth flow runs fresh.
+window.addEventListener('pageshow',function(e){
+  if(e.persisted) location.reload();
+});
 
 async function autoJoinByCode(code){
   if(!code||!state.user)return;
