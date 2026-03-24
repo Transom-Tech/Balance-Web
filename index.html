@@ -801,7 +801,11 @@ async function handleResetPassword(){
 }
 async function handleLogout(){
   if(state.realtimeSub){await sb.removeChannel(state.realtimeSub);state.realtimeSub=null;}
-  await sb.auth.signOut();
+  try{await sb.auth.signOut();}catch(e){
+    // If signOut fails (e.g. corrupted session), forcibly clear storage and reload
+    try{localStorage.clear();}catch(_){}
+    location.reload();
+  }
 }
 function withTimeout(p,ms){return Promise.race([p,new Promise(function(_,rej){setTimeout(function(){rej(new Error('timeout'));},ms);})]);} // Handle authenticated user - show app and load data
 async function handleUser(user){
@@ -814,7 +818,15 @@ async function handleUser(user){
   if(avatarEl){avatarEl.textContent=getInitials(n);avatarEl.style.background=avatarColor(n);}
   $('auth-screen').style.display='none';
   $('app-screen').style.display='flex';
+  try{
   await loadUserTrips();
+  }catch(e){
+    // If trip loading fails (e.g. stale/wrong session in localStorage), sign out cleanly
+    console.error('loadUserTrips failed, signing out:',e);
+    try{localStorage.clear();}catch(_){}
+    await sb.auth.signOut();
+    return;
+  }
   setupRealtime();
   // Load full profile from DB in background (non-blocking - just updates display name)
   sb.from('profiles').select('*').eq('id',user.id).single().then(function(res){
