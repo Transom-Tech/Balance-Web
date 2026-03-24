@@ -791,6 +791,7 @@ async function handleResetPassword(){
     toast('Password updated successfully!','success');
     closeModal('reset-password-modal');
     $('reset-password-new').value='';$('reset-password-confirm').value='';
+    _inPasswordRecovery=false;
     const {data:{session}}=await sb.auth.getSession();
     if(session&&session.user) await handleUser(session.user);
   }catch(e){
@@ -841,16 +842,33 @@ function handleSignOut(){
 }
 
 // Initialize: check existing session first, then listen for changes
+let _inPasswordRecovery=false;
 (async function initAuth(){
+  // Detect recovery link via URL hash before doing anything else
+  const hashParams=new URLSearchParams(window.location.hash.replace('#',''));
+  if(hashParams.get('type')==='recovery'){_inPasswordRecovery=true;}
   try{
     const {data:{session}}=await sb.auth.getSession();
-    if(session&&session.user) await handleUser(session.user);
+    if(_inPasswordRecovery){
+      // Don't load the app — wait for PASSWORD_RECOVERY event to open modal
+      $('auth-screen').style.display='flex';
+      $('app-screen').style.display='none';
+    } else if(session&&session.user) await handleUser(session.user);
     else handleSignOut();
   }catch(e){handleSignOut();}
   sb.auth.onAuthStateChange(async function(event,session){
-    if(event==='PASSWORD_RECOVERY'){openModal('reset-password-modal');return;}
-    if(event==='SIGNED_IN'&&session&&session.user) await handleUser(session.user);
-    else if(event==='SIGNED_OUT') handleSignOut();
+    if(event==='PASSWORD_RECOVERY'){
+      _inPasswordRecovery=true;
+      $('auth-screen').style.display='flex';
+      $('app-screen').style.display='none';
+      openModal('reset-password-modal');
+      return;
+    }
+    if(event==='SIGNED_IN'){
+      if(_inPasswordRecovery) return; // block until password is reset
+      if(session&&session.user) await handleUser(session.user);
+    }
+    else if(event==='SIGNED_OUT'){_inPasswordRecovery=false;handleSignOut();}
     else if(event==='TOKEN_REFRESHED'&&session&&session.user) state.user=session.user;
   });
 })();
