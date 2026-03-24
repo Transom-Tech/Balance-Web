@@ -509,6 +509,7 @@ input,select,textarea{font-family:inherit}
 <div id="login-form">
 <div class="form-group"><label class="form-label">Email</label><input type="email" class="form-input" id="login-email" placeholder="you@example.com" autocomplete="email"></div>
 <div class="form-group"><label class="form-label">Password</label><input type="password" class="form-input" id="login-password" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')handleLogin()"></div>
+<div style="text-align:right;margin-top:-6px;margin-bottom:12px"><a href="#" onclick="handleForgotPassword();return false;" style="font-size:12.5px;color:var(--accent2);text-decoration:none;opacity:.85" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.85">Forgot password?</a></div>
 <button class="btn btn-primary" id="login-btn" onclick="handleLogin()">Sign In</button>
 </div>
 <div id="signup-form" style="display:none">
@@ -644,6 +645,14 @@ input,select,textarea{font-family:inherit}
 <p class="invite-hint">&#128203; Click to copy &bull; Expires in 7 days</p>
 <div class="modal-footer"><button class="btn btn-primary" style="width:auto" onclick="closeModal('invite-modal')">Done</button></div>
 </div></div>
+<div class="modal-overlay" id="reset-password-modal">
+<div class="modal"><h2>&#128274; Set New Password</h2>
+<p style="color:var(--text2);font-size:13px;margin-bottom:16px">Choose a new password for your account.</p>
+<div class="form-group"><label class="form-label">New Password</label><input type="password" class="form-input" id="reset-password-new" placeholder="Min. 8 characters" autocomplete="new-password"></div>
+<div class="form-group"><label class="form-label">Confirm Password</label><input type="password" class="form-input" id="reset-password-confirm" placeholder="Repeat new password" autocomplete="new-password" onkeydown="if(event.key==='Enter')handleResetPassword()"></div>
+<div class="modal-footer" style="justify-content:flex-end">
+<button class="btn btn-primary" style="width:auto" id="reset-password-btn" onclick="handleResetPassword()">Set New Password</button>
+</div></div></div>
 <script>
 function dbg(msg,col){console.log(new Date().toISOString().slice(11,19)+" "+msg);}
 const SURL='https://gvgibiryxnngffvvavvr.supabase.co';
@@ -760,6 +769,35 @@ async function handleSignup(){
     if(inviteCode)state._pendingInvite=inviteCode;
   }
 }
+async function handleForgotPassword(){
+  const email=$('login-email').value.trim();
+  if(!email){showAuthError('Please enter your email address first.');return;}
+  try{
+    const {error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:window.location.origin+window.location.pathname});
+    if(error){showAuthError(error.message);return;}
+    toast('Password reset email sent! Check your inbox.','success',5000);
+  }catch(e){showAuthError('Could not send reset email: '+e.message);}
+}
+async function handleResetPassword(){
+  const newPass=$('reset-password-new').value;
+  const confirmPass=$('reset-password-confirm').value;
+  if(newPass.length<8){toast('Password must be at least 8 characters.','error');return;}
+  if(newPass!==confirmPass){toast('Passwords do not match.','error');return;}
+  const btn=$('reset-password-btn');btn.disabled=true;btn.innerHTML='<span class="spinner"></span> Saving...';
+  try{
+    const {error}=await sb.auth.updateUser({password:newPass});
+    btn.disabled=false;btn.textContent='Set New Password';
+    if(error){toast('Error updating password: '+error.message,'error');return;}
+    toast('Password updated successfully!','success');
+    closeModal('reset-password-modal');
+    $('reset-password-new').value='';$('reset-password-confirm').value='';
+    const {data:{session}}=await sb.auth.getSession();
+    if(session&&session.user) await handleUser(session.user);
+  }catch(e){
+    btn.disabled=false;btn.textContent='Set New Password';
+    toast('Exception: '+e.message,'error');
+  }
+}
 async function handleLogout(){
   if(state.realtimeSub){await sb.removeChannel(state.realtimeSub);state.realtimeSub=null;}
   await sb.auth.signOut();
@@ -810,6 +848,7 @@ function handleSignOut(){
     else handleSignOut();
   }catch(e){handleSignOut();}
   sb.auth.onAuthStateChange(async function(event,session){
+    if(event==='PASSWORD_RECOVERY'){openModal('reset-password-modal');return;}
     if(event==='SIGNED_IN'&&session&&session.user) await handleUser(session.user);
     else if(event==='SIGNED_OUT') handleSignOut();
     else if(event==='TOKEN_REFRESHED'&&session&&session.user) state.user=session.user;
