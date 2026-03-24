@@ -800,12 +800,12 @@ async function handleResetPassword(){
   }
 }
 async function handleLogout(){
-  if(state.realtimeSub){await sb.removeChannel(state.realtimeSub);state.realtimeSub=null;}
-  try{await sb.auth.signOut();}catch(e){
-    // If signOut fails (e.g. corrupted session), forcibly clear storage and reload
-    try{localStorage.clear();}catch(_){}
-    location.reload();
-  }
+  if(state.realtimeSub){try{await sb.removeChannel(state.realtimeSub);}catch(_){}state.realtimeSub=null;}
+  try{await sb.auth.signOut();}catch(_){}
+  // Always force-clear storage and reload — don't rely on SIGNED_OUT event firing.
+  // Corrupted/mismatched sessions complete signOut silently without triggering the event.
+  try{localStorage.clear();}catch(_){}
+  location.reload();
 }
 function withTimeout(p,ms){return Promise.race([p,new Promise(function(_,rej){setTimeout(function(){rej(new Error('timeout'));},ms);})]);} // Handle authenticated user - show app and load data
 async function handleUser(user){
