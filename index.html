@@ -819,13 +819,11 @@ async function handleUser(user){
   $('auth-screen').style.display='none';
   $('app-screen').style.display='flex';
   try{
-  await loadUserTrips();
+    await loadUserTrips();
   }catch(e){
-    // If trip loading fails (e.g. stale/wrong session in localStorage), sign out cleanly
-    console.error('loadUserTrips failed, signing out:',e);
-    try{localStorage.clear();}catch(_){}
-    await sb.auth.signOut();
-    return;
+    // Network/temporary error — don't wipe the session, just show a retry toast
+    console.error('loadUserTrips failed:',e);
+    toast('Could not load trips — check your connection and refresh.','error');
   }
   setupRealtime();
   // Load full profile from DB in background (non-blocking - just updates display name)
