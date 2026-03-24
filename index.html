@@ -1173,16 +1173,14 @@ row.innerHTML="<div class=\"settle-row-top\"><span class=\"sfrom\">"+t.from+"</s
 sl.appendChild(row);});}
 
 function checkSplitDrift(){
-  // Compare stored split totals vs expected (total / memberCount)
+  // Flag only when split totals don't add up to the expense amount.
+  // Custom splits (fewer people than the full group) are valid as long as
+  // their totals equal the expense amount — do NOT flag them.
   if(!state.expenses.length||!state.members.length)return;
-  const cur=getCurrentCurrency();
-  const memberCount=state.members.length;
   let hasDrift=false;
   state.expenses.forEach(function(exp){
     const splits=exp.expense_splits||[];
-    // Only check equal-split expenses (split count matches member count, or is off)
-    if(splits.length>0&&splits.length!==memberCount){hasDrift=true;return;}
-    if(splits.length===0)return;
+    if(splits.length===0)return; // no splits yet — skip
     const storedTotal=splits.reduce(function(s,sp){return s+Number(sp.amount_owed);},0);
     const expAmt=Number(exp.amount);
     if(Math.abs(storedTotal-expAmt)>0.10){hasDrift=true;}
@@ -1195,9 +1193,18 @@ async function handleRecalcAllSplits(){
   if(!state.currentTripId||!state.members.length)return;
   const btn=document.querySelector('#balance-wrap .panel-header .splits-recalc-btn');
   if(btn){btn.disabled=true;btn.textContent='Recalculating...';}
+  // Helper: detect intentional custom splits — fewer people than the full group
+  // but totals already add up correctly. Leave these alone.
+  function isCustomSplit(exp){
+    const splits=exp.expense_splits||[];
+    if(splits.length===0||splits.length>=state.members.length) return false;
+    const storedTotal=splits.reduce(function(s,sp){return s+Number(sp.amount_owed);},0);
+    return Math.abs(storedTotal-Number(exp.amount))<=0.10;
+  }
   try{
     let count=0;
     for(const exp of state.expenses){
+      if(isCustomSplit(exp)) continue; // don't touch intentional custom splits
       const shareAmt=Number(exp.amount)/state.members.length;
       const splits=state.members.map(function(m){return {user_id:m.user_id,amount_owed:Math.round(shareAmt*100)/100};});
       // Delete existing splits first, then insert fresh ones
@@ -1208,17 +1215,24 @@ async function handleRecalcAllSplits(){
       if(error)throw error;
       count++;
     }
-    toast('Splits recalculated for '+count+' expense'+(count!==1?'s':'')+' across '+state.members.length+' members.','success');
+    if(count>0){
+      toast('Splits recalculated for '+count+' expense'+(count!==1?'s':'')+' across '+state.members.length+' members.','success');
+    }else{
+      toast('All splits are correct — nothing to fix.','success');
+    }
     await loadTripData();
   }catch(e){
     // Fallback: try via RPC if direct table access is blocked by RLS
     try{
+      let count=0;
       for(const exp of state.expenses){
+        if(isCustomSplit(exp)) continue;
         const shareAmt=Number(exp.amount)/state.members.length;
         const splits=state.members.map(function(m){return {user_id:m.user_id,amount_owed:Math.round(shareAmt*100)/100};});
         await sb.rpc('insert_expense_splits',{p_expense_id:exp.id,p_splits:splits});
+        count++;
       }
-      toast('Splits recalculated for '+state.expenses.length+' expenses across '+state.members.length+' members.','success');
+      toast('Splits recalculated for '+count+' expenses across '+state.members.length+' members.','success');
       await loadTripData();
     }catch(e2){toast('Error recalculating: '+e2.message+'. You may need a recalculate RPC — see console.','error');console.error('Recalc error:',e,e2);}
   }
