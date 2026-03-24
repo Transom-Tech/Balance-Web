@@ -911,7 +911,7 @@ let _inPasswordRecovery=false;
 // re-validate the session and reload data if needed. Without this, a device
 // that slept for hours can wake with an expired token and a stuck UI.
 (function(){
-  var _hiddenAt=0;
+  var _hiddenAt=Date.now(); // init to now so first visible event doesn't fire immediately
   document.addEventListener('visibilitychange',function(){
     if(document.visibilityState==='hidden'){_hiddenAt=Date.now();return;}
     // Only act if the page was hidden for more than 60 seconds
@@ -991,7 +991,9 @@ async function loadUserTrips(){
   if(state.trips.length&&!state.currentTripId){
     state.currentTripId=state.trips[0].id;
     $('trip-select').value=state.currentTripId;
-    await loadTripData();
+    // Wrap separately — a loadTripData failure (network blip loading members/expenses)
+    // must not bubble up to handleUser's catch and incorrectly wipe state.trips.
+    try{ await loadTripData(); }catch(e){ console.error('loadTripData failed:',e); }
   }
 }
 function renderTripSelect(){
