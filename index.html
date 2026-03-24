@@ -800,10 +800,10 @@ async function handleResetPassword(){
   }
 }
 async function handleLogout(){
-  if(state.realtimeSub){try{await sb.removeChannel(state.realtimeSub);}catch(_){}state.realtimeSub=null;}
-  try{await sb.auth.signOut();}catch(_){}
-  // Always force-clear storage and reload — don't rely on SIGNED_OUT event firing.
-  // Corrupted/mismatched sessions complete signOut silently without triggering the event.
+  // Wrap network calls in a timeout — if the realtime socket or auth server is
+  // hung (common after device sleep), logout must not freeze at the await.
+  if(state.realtimeSub){try{await Promise.race([sb.removeChannel(state.realtimeSub),new Promise(function(r){setTimeout(r,1500);})]);}catch(_){}state.realtimeSub=null;}
+  try{await Promise.race([sb.auth.signOut(),new Promise(function(r){setTimeout(r,1500);})]);}catch(_){}
   try{localStorage.clear();}catch(_){}
   location.reload();
 }
@@ -887,6 +887,31 @@ let _inPasswordRecovery=false;
     }
     else if(event==='SIGNED_OUT'){_inPasswordRecovery=false;handleSignOut();}
     else if(event==='TOKEN_REFRESHED'&&session&&session.user) state.user=session.user;
+  });
+})();
+
+// When the device wakes from sleep or the user switches back to this tab,
+// re-validate the session and reload data if needed. Without this, a device
+// that slept for hours can wake with an expired token and a stuck UI.
+(function(){
+  var _hiddenAt=0;
+  document.addEventListener('visibilitychange',function(){
+    if(document.visibilityState==='hidden'){_hiddenAt=Date.now();return;}
+    // Only act if the page was hidden for more than 60 seconds
+    if(!state.user||Date.now()-_hiddenAt<60000) return;
+    sb.auth.getSession().then(function(res){
+      var session=res.data&&res.data.session;
+      if(!session){
+        // Session expired while sleeping — clean logout
+        handleLogout();
+      } else if(state.currentTripId){
+        // Session valid, refresh trip data quietly
+        loadTripData().catch(function(){});
+      } else {
+        // Session valid but no trip loaded — retry
+        loadUserTrips().catch(function(){});
+      }
+    }).catch(function(){});
   });
 })();
 
