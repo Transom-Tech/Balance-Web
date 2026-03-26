@@ -897,13 +897,22 @@ let _inPasswordRecovery=false;
       if(_inPasswordRecovery) return;
       // SIGNED_IN fires on ALL tabs whenever any tab refreshes a token or a new
       // tab initializes — even for the same user. If this tab already has a user
-      // loaded, ignore it completely. handleUser will only be needed on a fresh
-      // login (state.user is null). INITIAL_SESSION handles the page-load case.
-      if(state.user) return;
+      // loaded, only re-run loadUserTrips if trips are empty (covers the case
+      // where the initial load failed because the token was expired at page-load time).
+      if(state.user){
+        if(!state.trips.length) loadUserTrips().catch(function(){});
+        return;
+      }
       if(session&&session.user) await handleUser(session.user);
     }
     else if(event==='SIGNED_OUT'){_inPasswordRecovery=false;handleSignOut();}
-    else if(event==='TOKEN_REFRESHED'&&session&&session.user) state.user=session.user;
+    else if(event==='TOKEN_REFRESHED'&&session&&session.user){
+      state.user=session.user;
+      // If the user is logged in but trips are empty it likely means the initial
+      // load ran while the token was still expired and got 0 results back from RLS.
+      // Now that we have a confirmed fresh token, retry the trip load.
+      if(!_inPasswordRecovery&&!state.trips.length) loadUserTrips().catch(function(){});
+    }
   });
 })();
 
