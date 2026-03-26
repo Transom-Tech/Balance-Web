@@ -936,16 +936,26 @@ let _inPasswordRecovery=false;
 // bfcache, re-validate the session in-place instead of calling location.reload().
 // A blind reload can itself be served from bfcache on iOS Safari / some Chromium
 // builds, creating an infinite reload loop that locks up the page.
+// We also cover the case where bfcache froze the page mid-load (auth done but
+// trips not yet fetched), which would leave the app in a permanent no-trip state.
 window.addEventListener('pageshow',function(e){
   if(!e.persisted) return;
   sb.auth.getSession().then(function(res){
     var session=res.data&&res.data.session;
     if(!session){
-      // Session expired while page was cached — sign out cleanly.
-      if(state.user) handleLogout();
-    } else if(session.user && state.currentTripId){
-      // Session valid; quietly refresh trip data in case it went stale.
-      loadTripData().catch(function(){});
+      // Session expired while page was cached.
+      if(state.user) handleLogout(); else handleSignOut();
+    } else if(session.user){
+      if(!state.user){
+        // Page was frozen before auth finished — complete the login flow now.
+        handleUser(session.user).catch(function(){});
+      } else if(state.currentTripId){
+        // User and trip already loaded — quietly refresh trip data.
+        loadTripData().catch(function(){});
+      } else {
+        // User loaded but trips not yet fetched (frozen mid-load) — load them now.
+        loadUserTrips().catch(function(){});
+      }
     }
   }).catch(function(){});
 });
@@ -1030,7 +1040,13 @@ function renderNoTrip(){
 async function loadTripData(){
   if(!state.currentTripId){renderNoTrip();return;}
   const trip=state.trips.find(t=>t.id===state.currentTripId);
-  if(!trip)return;
+  if(!trip){
+    // Trip not in local list (deleted, archived, or trips not loaded yet).
+    // Reset and reload the trip list so the UI settles into a clean state.
+    state.currentTripId=null;
+    loadUserTrips().catch(function(){renderNoTrip();});
+    return;
+  }
   const sym=SYMBOLS[trip.base_currency]||trip.base_currency;
   $('trip-currency-badge').textContent=trip.base_currency;
   $('currency-prefix') && ($('currency-prefix').textContent=sym);const cs=document.getElementById('currency-select');if(cs){cs.value=trip.base_currency;}
