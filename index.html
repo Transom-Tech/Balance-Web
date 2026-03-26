@@ -1118,7 +1118,22 @@ function showSkeletonLoader(){
   }
 }
 
-async function renderAll(){renderExpenseForm();renderExpenseList();renderStats();await renderBalance();}
+async function renderAll(){
+  renderExpenseForm();renderExpenseList();renderStats();
+  // Safety check: if we have expenses but ALL are missing splits, the Supabase
+  // join may have returned stale data (RLS timing, cache, etc.).  Re-fetch once.
+  if(state.expenses.length > 0){
+    var _missingSplits = state.expenses.every(function(e){ return !e.expense_splits || e.expense_splits.length === 0; });
+    if(_missingSplits && !renderAll._retried){
+      dbg('renderAll: all expenses missing splits — retrying loadTripData');
+      renderAll._retried = true;
+      try{ await loadTripData(); }catch(_){}
+      return; // loadTripData calls renderAll again
+    }
+    renderAll._retried = false;
+  }
+  await renderBalance();
+}
 function getCurrentCurrency(){const sel=document.getElementById("currency-select");return sel?sel.value:(state.trips.find(t=>t.id===state.currentTripId)||{base_currency:"USD"}).base_currency;}function onCurrencyChange(){updateShares();renderMemberChecks();}
 function fmtDate(d){if(!d)return'';const [y,m,day]=d.split('-');const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return months[parseInt(m,10)-1]+' '+parseInt(day,10)+', '+y;}
 function renderStats(){
