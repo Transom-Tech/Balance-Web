@@ -886,7 +886,14 @@ let _inPasswordRecovery=(function(){
 })();
 
 (function initAuth(){
-  sb.auth.onAuthStateChange(async function(event,session){
+  // IMPORTANT: This callback must NEVER use await.  Supabase's internal auth
+  // state-machine waits for onAuthStateChange listeners to return before it
+  // considers the session "ready" and allows API calls (select/insert/etc.)
+  // to proceed.  If we await handleUser() here — which itself awaits DB
+  // queries — we get a deadlock: our callback waits for the query, the query
+  // waits for auth to be ready, auth waits for our callback.  Fire-and-forget
+  // with .catch() avoids this entirely.
+  sb.auth.onAuthStateChange(function(event,session){
     dbg('auth event: '+event);
 
     // ── Password recovery ──────────────────────────────────────────
@@ -899,10 +906,9 @@ let _inPasswordRecovery=(function(){
     }
 
     // ── Initial session (page load / refresh) ──────────────────────
-    // No setTimeout — _inPasswordRecovery was set synchronously above.
     if(event==='INITIAL_SESSION'){
       if(_inPasswordRecovery) return;
-      if(session&&session.user) await handleUser(session.user);
+      if(session&&session.user) handleUser(session.user).catch(function(e){console.error('handleUser error:',e);});
       else handleSignOut();
       return;
     }
@@ -913,7 +919,7 @@ let _inPasswordRecovery=(function(){
     // deduplicates — we don't need to second-guess it here.
     if(event==='SIGNED_IN'){
       if(_inPasswordRecovery) return;
-      if(session&&session.user) await handleUser(session.user);
+      if(session&&session.user) handleUser(session.user).catch(function(e){console.error('handleUser error:',e);});
       return;
     }
 
