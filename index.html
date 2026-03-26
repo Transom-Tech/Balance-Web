@@ -1045,8 +1045,12 @@ async function loadUserTrips(){
   state.trips=trips||[];
   renderTripSelect();
   if(state.trips.length&&!state.currentTripId){
-    state.currentTripId=state.trips[0].id;
+    // Restore the last-viewed trip if it's still in the list, otherwise pick the first.
+    var saved=null;try{saved=localStorage.getItem('balance_last_trip');}catch(_){}
+    var match=saved&&state.trips.find(function(t){return t.id===saved;});
+    state.currentTripId=match?match.id:state.trips[0].id;
     $('trip-select').value=state.currentTripId;
+    try{localStorage.setItem('balance_last_trip',state.currentTripId);}catch(_){}
     // Wrap separately — a loadTripData failure (network blip loading members/expenses)
     // must not bubble up to handleUser's catch and incorrectly wipe state.trips.
     try{ await loadTripData(); }catch(e){ console.error('loadTripData failed:',e); }
@@ -1061,8 +1065,10 @@ function renderTripSelect(){
 async function onTripChange(){
   const val=$('trip-select').value;
   state.currentTripId=val||null;
-  if(state.currentTripId)await loadTripData();
-  else renderNoTrip();
+  if(state.currentTripId){
+    try{localStorage.setItem('balance_last_trip',state.currentTripId);}catch(_){}
+    await loadTripData();
+  } else renderNoTrip();
 }
 function renderNoTrip(){
   ['no-trip-left','no-trip-mid','no-trip-right'].forEach(show);
