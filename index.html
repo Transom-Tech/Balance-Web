@@ -1078,6 +1078,7 @@ function renderNoTrip(){
   $('stat-total').textContent='$0.00';$('stat-per').textContent='$0.00';$('stat-count').textContent='0';
   const sb=$('stat-balance');if(sb){sb.textContent='—';sb.style.color='';}
 }
+var _loadTripDataVersion = 0;
 async function loadTripData(){
   if(!state.currentTripId){renderNoTrip();return;}
   const trip=state.trips.find(t=>t.id===state.currentTripId);
@@ -1088,6 +1089,8 @@ async function loadTripData(){
     loadUserTrips().catch(function(){renderNoTrip();});
     return;
   }
+  // Track call version so concurrent calls don't stomp each other
+  var myVersion = ++_loadTripDataVersion;
   const sym=SYMBOLS[trip.base_currency]||trip.base_currency;
   $('trip-currency-badge').textContent=trip.base_currency;
   $('currency-prefix') && ($('currency-prefix').textContent=sym);const cs=document.getElementById('currency-select');if(cs){cs.value=trip.base_currency;}
@@ -1096,8 +1099,11 @@ async function loadTripData(){
   // Show skeleton while loading
   showSkeletonLoader();
   const {data:mems}=await sb.from('trip_members').select('*,profiles(*)').eq('trip_id',state.currentTripId);
+  // If a newer loadTripData call started, abandon this one
+  if(myVersion !== _loadTripDataVersion) return;
   state.members=(mems||[]).map(m=>({...m,profile:m.profiles}));
   const {data:exps}=await sb.from('expenses').select('*,expense_splits(*)').eq('trip_id',state.currentTripId).order('expense_date',{ascending:false});
+  if(myVersion !== _loadTripDataVersion) return;
   state.expenses=exps||[];
   renderAll();
 }
@@ -1223,8 +1229,14 @@ function convertViaUSD(amount, fromCur, toCur, usdRates) {
   return amount * fromToUSD * usdToTo;
 }
 
+var _balanceRenderId = 0;
 async function renderBalance(){
 hide("no-trip-right");show("balance-wrap");
+// Cancellation: if a newer renderBalance starts while we await, bail out
+var myRenderId = ++_balanceRenderId;
+// Snapshot data at the start so it stays consistent across the await
+var snapMembers = state.members.slice();
+var snapExpenses = state.expenses.slice();
 // Show loading state while fetching rates
 const list=$("balance-list");
 const sl=$("settle-list");
@@ -1232,12 +1244,14 @@ list.innerHTML='<div style="padding:20px;text-align:center;color:var(--text3);fo
 sl.innerHTML='';
 const cur=getCurrentCurrency();
 const paid={};const owed={};
-state.members.forEach(function(m){paid[m.user_id]=0;owed[m.user_id]=0;});
+snapMembers.forEach(function(m){paid[m.user_id]=0;owed[m.user_id]=0;});
 // Fetch exchange rates for multi-currency conversion
-const multiCurrency = state.expenses.some(function(e){return e.currency && e.currency !== cur;});
+const multiCurrency = snapExpenses.some(function(e){return e.currency && e.currency !== cur;});
 // Prefetch all historical rates in parallel
-await prefetchRatesForExpenses(state.expenses);
-state.expenses.forEach(function(exp){
+await prefetchRatesForExpenses(snapExpenses);
+// If a newer render started while we were fetching rates, abandon this one
+if(myRenderId !== _balanceRenderId) return;
+snapExpenses.forEach(function(exp){
   const expCur = exp.currency || cur;
   // Use historical rate for the date the expense was incurred
   const usdRates = _fxCache[exp.expense_date] || null;
@@ -1248,15 +1262,15 @@ state.expenses.forEach(function(exp){
     if(owed[s.user_id]!==undefined) owed[s.user_id] += Number(s.amount_owed) * splitRate;
   });
 });
-const total=state.expenses.reduce(function(s,e){
+const total=snapExpenses.reduce(function(s,e){
   const usdRates = _fxCache[e.expense_date] || null;
   return s + convertViaUSD(Number(e.amount), e.currency||cur, cur, usdRates);
 },0);
-const fairShare=state.members.length>0?total/state.members.length:0;
+const fairShare=snapMembers.length>0?total/snapMembers.length:0;
 list.innerHTML="";
 if(multiCurrency){const note=document.createElement("div");note.style.cssText="font-size:11px;color:var(--text2);margin-bottom:8px;padding:6px 10px;background:var(--accent-dim);border-radius:8px;text-align:center;";note.textContent="💱 Amounts converted to "+cur+" at historical rates (date of expense)";list.appendChild(note);}
 const balances=[];
-state.members.forEach(function(m){
+snapMembers.forEach(function(m){
 const n=getName(m.profile);const p=paid[m.user_id]||0;const o=owed[m.user_id]||0;
 const net=p-o;balances.push({uid:m.user_id,name:n,paid:p,owed:o,net:net});
 const card=document.createElement("div");card.className="balance-card";
@@ -1659,15 +1673,20 @@ openModal("invite-modal");}
 function copyInviteCode(){
 const code=$("invite-code-display").textContent;
 navigator.clipboard.writeText(code).then(function(){toast("Code copied!","success");}).catch(function(){toast("Code: "+code,"info");});}
+var _realtimeDebounce=null;
+function _debouncedLoadTripData(){
+  if(_realtimeDebounce) clearTimeout(_realtimeDebounce);
+  _realtimeDebounce=setTimeout(function(){ _realtimeDebounce=null; if(state.currentTripId) loadTripData(); }, 500);
+}
 function setupRealtime(){
 if(state.realtimeSub){sb.removeChannel(state.realtimeSub);state.realtimeSub=null;}
 state.realtimeSub=sb.channel("expenses-realtime")
 .on("postgres_changes",{event:"*",schema:"public",table:"expenses"},function(payload){
 if(state.currentTripId&&payload.new&&payload.new.trip_id===state.currentTripId||payload.old&&payload.old.trip_id===state.currentTripId){
-loadTripData();
+_debouncedLoadTripData();
 }})
 .on("postgres_changes",{event:"*",schema:"public",table:"expense_splits"},function(){
-if(state.currentTripId)loadTripData();
+_debouncedLoadTripData();
 })
 .subscribe();
 }
