@@ -932,11 +932,22 @@ let _inPasswordRecovery=false;
   });
 })();
 
-// Safari (and some other browsers) use a back-forward cache (bfcache) that can
-// restore a broken page state instead of truly reloading. Detect this and force
-// a real reload so the auth flow runs fresh.
+// Back-forward cache (bfcache) guard: when the browser restores this page from
+// bfcache, re-validate the session in-place instead of calling location.reload().
+// A blind reload can itself be served from bfcache on iOS Safari / some Chromium
+// builds, creating an infinite reload loop that locks up the page.
 window.addEventListener('pageshow',function(e){
-  if(e.persisted) location.reload();
+  if(!e.persisted) return;
+  sb.auth.getSession().then(function(res){
+    var session=res.data&&res.data.session;
+    if(!session){
+      // Session expired while page was cached — sign out cleanly.
+      if(state.user) handleLogout();
+    } else if(session.user && state.currentTripId){
+      // Session valid; quietly refresh trip data in case it went stale.
+      loadTripData().catch(function(){});
+    }
+  }).catch(function(){});
 });
 
 async function autoJoinByCode(code){
