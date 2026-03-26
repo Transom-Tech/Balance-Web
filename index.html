@@ -807,9 +807,16 @@ async function handleLogout(){
   try{localStorage.clear();}catch(_){}
   location.reload();
 }
-function withTimeout(p,ms){return Promise.race([p,new Promise(function(_,rej){setTimeout(function(){rej(new Error('timeout'));},ms);})]);} // Handle authenticated user - show app and load data
+function withTimeout(p,ms){return Promise.race([p,new Promise(function(_,rej){setTimeout(function(){rej(new Error('timeout'));},ms);})]);}
+// Handle authenticated user - show app and load data.
+// _handleUserRunning prevents concurrent execution; the trips-length check allows
+// a second call to retry if the first load failed (e.g. expired token on refresh).
+let _handleUserRunning=false;
 async function handleUser(user){
-  if(state.user&&state.user.id===user.id)return; // already handling this user
+  if(_handleUserRunning) return;
+  if(state.user&&state.user.id===user.id&&state.trips.length>0) return;
+  _handleUserRunning=true;
+  try{
   state.user=user;
   // Use session data directly - fast, no DB query blocking
   state.profile={id:user.id,email:user.email,name:user.user_metadata?.name||user.email.split('@')[0]};
@@ -858,6 +865,7 @@ async function handleUser(user){
   // Auto-join from invite code
   const pendingCode=state._pendingInvite||new URLSearchParams(window.location.search).get('invite');
   if(pendingCode){state._pendingInvite=null;await autoJoinByCode(pendingCode.trim().toUpperCase());}
+  }finally{ _handleUserRunning=false; }
 }
 
 function handleSignOut(){
@@ -868,13 +876,20 @@ function handleSignOut(){
   $('app-screen').style.display='none';
 }
 
-// Initialize: rely solely on onAuthStateChange (handles both normal and recovery flows)
-// INITIAL_SESSION fires first, PASSWORD_RECOVERY fires synchronously right after it.
-// We defer the INITIAL_SESSION handler by one tick so PASSWORD_RECOVERY can set the
-// flag before we decide whether to load the app.
-let _inPasswordRecovery=false;
+// ── Auth initialisation ──────────────────────────────────────────────
+// Detect password-recovery links synchronously from the URL hash BEFORE any
+// Supabase events fire.  Supabase puts  type=recovery  in the fragment, so
+// reading it upfront lets us skip the old setTimeout(0) deferral entirely.
+let _inPasswordRecovery=(function(){
+  try{return new URLSearchParams(window.location.hash.substring(1)).get('type')==='recovery';}
+  catch(_){return false;}
+})();
+
 (function initAuth(){
   sb.auth.onAuthStateChange(async function(event,session){
+    dbg('auth event: '+event);
+
+    // ── Password recovery ──────────────────────────────────────────
     if(event==='PASSWORD_RECOVERY'){
       _inPasswordRecovery=true;
       $('auth-screen').style.display='flex';
@@ -882,36 +897,41 @@ let _inPasswordRecovery=false;
       openModal('reset-password-modal');
       return;
     }
+
+    // ── Initial session (page load / refresh) ──────────────────────
+    // No setTimeout — _inPasswordRecovery was set synchronously above.
     if(event==='INITIAL_SESSION'){
-      // Defer one tick: PASSWORD_RECOVERY fires synchronously right after this,
-      // so by the time setTimeout runs the flag will already be set if needed.
-      const snap=session;
-      setTimeout(async function(){
-        if(_inPasswordRecovery) return;
-        if(snap&&snap.user) await handleUser(snap.user);
-        else handleSignOut();
-      },0);
+      if(_inPasswordRecovery) return;
+      if(session&&session.user) await handleUser(session.user);
+      else handleSignOut();
       return;
     }
+
+    // ── Explicit sign-in ───────────────────────────────────────────
+    // Fires on fresh login AND when any tab refreshes a token.
+    // handleUser's own guard (running-lock + trips-loaded check)
+    // deduplicates — we don't need to second-guess it here.
     if(event==='SIGNED_IN'){
       if(_inPasswordRecovery) return;
-      // SIGNED_IN fires on ALL tabs whenever any tab refreshes a token or a new
-      // tab initializes — even for the same user. If this tab already has a user
-      // loaded, only re-run loadUserTrips if trips are empty (covers the case
-      // where the initial load failed because the token was expired at page-load time).
-      if(state.user){
-        if(!state.trips.length) loadUserTrips().catch(function(){});
-        return;
-      }
       if(session&&session.user) await handleUser(session.user);
+      return;
     }
-    else if(event==='SIGNED_OUT'){_inPasswordRecovery=false;handleSignOut();}
-    else if(event==='TOKEN_REFRESHED'&&session&&session.user){
+
+    // ── Sign-out ───────────────────────────────────────────────────
+    if(event==='SIGNED_OUT'){
+      _inPasswordRecovery=false;
+      handleSignOut();
+      return;
+    }
+
+    // ── Token refreshed ────────────────────────────────────────────
+    // Keep state.user current.  If trips never loaded (expired token on
+    // first try, RLS returned 0 rows), retry now with the fresh token.
+    if(event==='TOKEN_REFRESHED'&&session&&session.user){
       state.user=session.user;
-      // If the user is logged in but trips are empty it likely means the initial
-      // load ran while the token was still expired and got 0 results back from RLS.
-      // Now that we have a confirmed fresh token, retry the trip load.
-      if(!_inPasswordRecovery&&!state.trips.length) loadUserTrips().catch(function(){});
+      if(!_inPasswordRecovery&&state.user&&!state.trips.length&&!_handleUserRunning){
+        loadUserTrips().catch(function(){});
+      }
     }
   });
 })();
