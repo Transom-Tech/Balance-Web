@@ -106,6 +106,8 @@ input,select,textarea{font-family:inherit}
 .profile-menu-wrap{position:relative;flex-shrink:0}
 .profile-dropdown{display:none;position:absolute;top:calc(100% + 10px);right:0;background:var(--bg2);border-radius:18px;min-width:210px;box-shadow:var(--shadow-lg);z-index:500;padding:6px;animation:fadeUp .18s ease;overflow:hidden;color:var(--text)}
 .profile-dropdown.open{display:block}
+/* While the account menu is open, lift the banner above the bubble card so the menu isn't hidden behind it */
+.trip-hero:has(.profile-dropdown.open){z-index:40}
 .profile-dropdown-header{padding:9px 12px 6px;font-size:13px;font-weight:700;color:var(--text2)}
 .profile-dropdown-divider{height:1px;background:var(--border);margin:4px 0}
 .profile-dropdown-item{display:flex;align-items:center;gap:8px;width:100%;padding:11px 12px;border:none;background:transparent;color:var(--text);font-size:15px;font-weight:600;border-radius:12px;cursor:pointer;text-align:left;font-family:inherit;transition:background .15s}
