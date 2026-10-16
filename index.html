@@ -76,6 +76,18 @@ input,select,textarea{font-family:inherit}
 #app-screen{display:none;flex-direction:column;min-height:100vh}
 .trip-hero{position:relative;background:var(--navy);color:#fff;border-radius:0 0 32px 32px;padding:14px 18px 62px;overflow:visible;z-index:20}
 .hero-top{display:flex;align-items:center;gap:10px;min-height:44px}
+/* Cover photo: image + scrim behind the hero content */
+.trip-hero .hero-cover{position:absolute;inset:0;border-radius:inherit;overflow:hidden;z-index:-1;background:var(--navy)}
+.trip-hero .hero-cover img{width:100%;height:100%;object-fit:cover;object-position:50% 40%;display:block;opacity:0;transition:opacity .5s ease}
+.trip-hero .hero-cover img.loaded{opacity:1}
+.trip-hero .hero-cover::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(8,14,32,.55) 0%,rgba(8,14,32,.05) 32%,rgba(8,14,32,.05) 45%,rgba(8,14,32,.82) 100%)}
+.trip-hero.has-cover{padding-bottom:70px}
+.trip-hero.has-cover .hero-body{margin-top:120px}
+.trip-hero.has-cover .trip-switch h1,.trip-hero.has-cover .hero-meta{text-shadow:0 1px 12px rgba(0,0,0,.35)}
+.cover-btn{width:44px;height:44px;border-radius:50%;border:none;background:rgba(255,255,255,.16);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);display:none;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
+.cover-btn.show{display:inline-flex}
+.cover-btn:hover{background:rgba(255,255,255,.26)}
+.cover-btn .spinner{width:16px;height:16px}
 .nav-logo{font-size:17px;font-weight:800;letter-spacing:-.3px;white-space:nowrap;display:flex;align-items:center;gap:6px;color:#fff}
 .nav-logo .logo-mark{color:var(--pink)}
 .nav-actions{display:flex;align-items:center;gap:10px;margin-left:auto}
@@ -360,11 +372,14 @@ input,select,textarea{font-family:inherit}
 </div>
 </div></div>
 <div id="app-screen">
-<header class="trip-hero">
+<header class="trip-hero" id="trip-hero">
+<div class="hero-cover" id="hero-cover" aria-hidden="true"></div>
 <div class="hero-top">
 <div class="nav-logo"><span class="logo-mark">⚖</span> <span>Balance</span></div>
 <div class="nav-actions">
 <span class="realtime-dot" title="Live"></span>
+<button type="button" class="cover-btn" id="cover-btn" onclick="pickTripCover()" aria-label="Set trip cover photo" title="Set trip cover photo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="15" rx="3"/><circle cx="9" cy="11" r="2"/><path d="M21 16l-5-5-8 9"/></svg></button>
+<input type="file" id="cover-input" accept="image/*" style="display:none" onchange="onCoverPicked(this)">
 <div class="profile-menu-wrap">
   <div class="avatar" id="user-avatar" onclick="toggleProfileMenu(event)" title="Account">?</div>
   <div class="profile-dropdown" id="profile-dropdown">
@@ -1010,9 +1025,62 @@ function tripDayLabel(s,e){
   if(t>b)return '';
   return 'Day '+(Math.round((t-a)/day)+1)+' of '+total;
 }
+// ── Trip cover photo ──
+function renderCover(t){
+  const hero=$('trip-hero'),box=$('hero-cover'),btn=$('cover-btn');if(!hero||!box)return;
+  if(btn)btn.classList.toggle('show',!!t);
+  const url=t&&t.cover_url;
+  if(!url){hero.classList.remove('has-cover');box.innerHTML='';box.dataset.url='';return;}
+  hero.classList.add('has-cover');
+  if(box.dataset.url===url)return;
+  box.dataset.url=url;
+  const img=new Image();img.alt='';img.decoding='async';
+  img.onload=function(){img.classList.add('loaded');};
+  img.onerror=function(){hero.classList.remove('has-cover');box.innerHTML='';box.dataset.url='';};
+  img.src=url;box.innerHTML='';box.appendChild(img);
+}
+function pickTripCover(){if(!state.currentTripId)return;const i=$('cover-input');if(i){i.value='';i.click();}}
+// Shrink to max 1600px JPEG before upload (phone photos are often 4–12 MB).
+function _shrinkImage(file,maxDim,quality){
+  return new Promise(function(resolve,reject){
+    const url=URL.createObjectURL(file),img=new Image();
+    img.onload=function(){
+      const s=Math.min(1,maxDim/Math.max(img.naturalWidth,img.naturalHeight));
+      const c=document.createElement('canvas');c.width=Math.round(img.naturalWidth*s);c.height=Math.round(img.naturalHeight*s);
+      c.getContext('2d').drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(url);
+      c.toBlob(function(b){b?resolve(b):reject(new Error('Could not process that photo'));},'image/jpeg',quality);
+    };
+    img.onerror=function(){URL.revokeObjectURL(url);reject(new Error('That file isn’t a photo this browser can read'));};
+    img.src=url;
+  });
+}
+async function onCoverPicked(input){
+  const file=input.files&&input.files[0];if(!file||!state.currentTripId)return;
+  const tripId=state.currentTripId,btn=$('cover-btn'),prevHtml=btn?btn.innerHTML:'';
+  if(btn){btn.disabled=true;btn.innerHTML='<span class="spinner"></span>';}
+  try{
+    const blob=await _shrinkImage(file,1600,0.82);
+    const path=tripId+'/cover-'+Date.now()+'.jpg';
+    const up=await sb.storage.from('trip-covers').upload(path,blob,{contentType:'image/jpeg',cacheControl:'31536000',upsert:false});
+    if(up.error)throw up.error;
+    const pub=sb.storage.from('trip-covers').getPublicUrl(path);
+    const url=pub&&pub.data&&pub.data.publicUrl;if(!url)throw new Error('No public link for the photo');
+    const {error}=await sb.rpc('set_trip_cover',{p_trip_id:tripId,p_cover_url:url});
+    if(error)throw error;
+    const t=(state.trips||[]).find(function(x){return x.id===tripId;});if(t)t.cover_url=url;
+    if(state.currentTripId===tripId)renderCover(t);
+    toast('Trip cover updated','success');
+  }catch(e){
+    const m=String((e&&e.message)||e);
+    if(/bucket|not found|set_trip_cover|function|schema cache|cover_url/i.test(m))toast('Cover photos need the one-time Supabase setup first.','error',6000);
+    else toast('Couldn’t set the cover: '+m,'error');
+    console.error('cover upload failed',e);
+  }finally{if(btn){btn.disabled=false;btn.innerHTML=prevHtml;}}
+}
 function renderHero(){
   const nameEl=$('hero-trip-name'),metaEl=$('hero-trip-meta');if(!nameEl||!metaEl)return;
   const t=(state.trips||[]).find(function(x){return x.id===state.currentTripId;});
+  renderCover(t);
   if(!t){nameEl.textContent=(state.trips&&state.trips.length)?'Pick a trip':'Start a trip';metaEl.textContent=(state.trips&&state.trips.length)?'Tap the name to choose':'';return;}
   nameEl.textContent=t.name;
   const parts=[];
