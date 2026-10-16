@@ -1,0 +1,1633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Balance (preview)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+/* ── Design Tokens (C2 "Postcard" direction) ───────────── */
+:root{
+  --bg:#f4f2f6;--bg2:#ffffff;--bg3:#f1eef5;--bg4:#e6e1ee;
+  --navy:#17213d;--navy2:#22305a;--ink:#101a30;
+  --pink:#f5a3bf;--pink2:#f8bfd2;
+  --accent:#17213d;--accent2:#3b4c80;--accent-dim:rgba(23,33,61,0.07);
+  --text:#101a30;--text2:#5f5873;--text3:#8d86a0;
+  --border:rgba(16,26,48,0.07);--border2:rgba(16,26,48,0.13);
+  --success:#1f6b3a;--danger:#b3261e;--warning:#9a5b00;
+  --radius:20px;--radius-sm:14px;--radius-xs:10px;
+  --shadow:0 6px 20px rgba(23,33,61,0.10);--shadow-lg:0 18px 48px rgba(23,33,61,0.18);
+  --font:'Bricolage Grotesque',system-ui,sans-serif;--font-mono:'Bricolage Grotesque',system-ui,sans-serif;
+  --mob-tab-h:64px;
+}
+
+/* ── Reset ─────────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;overflow-x:hidden}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;line-height:1.45;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;overflow-x:hidden;font-variant-numeric:tabular-nums}
+button{cursor:pointer;font-family:inherit}
+input,select,textarea{font-family:inherit}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:6px}
+:focus-visible{outline:2px solid var(--navy);outline-offset:2px}
+
+/* ── Auth Screen ───────────────────────────────────────── */
+#auth-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;background:var(--bg)}
+.auth-card{width:100%;max-width:400px;background:var(--bg2);border-radius:28px;padding:36px 30px;box-shadow:var(--shadow-lg);animation:fadeUp .35s ease}
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+.auth-logo{text-align:center;margin-bottom:26px}
+.logo-icon{width:60px;height:60px;background:var(--navy);color:var(--pink);border-radius:20px;display:inline-flex;align-items:center;justify-content:center;font-size:28px;margin-bottom:12px}
+.auth-logo h1{font-size:28px;font-weight:800;letter-spacing:-.6px;color:var(--text)}
+.auth-logo p{color:var(--text2);font-size:14px;margin-top:2px}
+.auth-tabs{display:flex;background:var(--bg4);border-radius:14px;padding:4px;margin-bottom:22px;gap:4px}
+.auth-tab{flex:1;padding:10px;border:none;background:transparent;color:var(--text2);font-size:14px;font-weight:600;border-radius:11px;transition:all .2s}
+.auth-tab.active{background:var(--bg2);color:var(--text);box-shadow:0 2px 8px rgba(23,33,61,0.10)}
+.auth-error{background:#fdecee;border:1px solid rgba(179,38,30,.25);color:#8c1d16;padding:10px 13px;border-radius:12px;font-size:13px;margin-bottom:13px;display:none}
+
+/* ── Form Elements ─────────────────────────────────────── */
+.form-group{margin-bottom:14px}
+.form-label{display:block;font-size:13px;font-weight:700;color:var(--text);margin-bottom:6px}
+.form-input{width:100%;padding:13px 14px;background:var(--bg3);border:1.5px solid transparent;border-radius:var(--radius-sm);color:var(--text);font-size:16px;transition:border-color .18s,background .18s;outline:none}
+.form-input:focus{border-color:var(--navy);background:var(--bg2)}
+.form-input::placeholder{color:var(--text3)}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.select-input{width:100%;padding:13px 14px;background:var(--bg3);border:1.5px solid transparent;border-radius:var(--radius-sm);color:var(--text);font-size:16px;outline:none;cursor:pointer}
+.select-input:focus{border-color:var(--navy);background:var(--bg2)}
+
+/* ── Buttons ───────────────────────────────────────────── */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:12px 20px;border:none;border-radius:99px;font-size:15px;font-weight:700;transition:all .16s;outline:none;cursor:pointer;white-space:nowrap;min-height:46px;background:var(--bg3);color:var(--text)}
+.btn:active{transform:scale(.97)}
+.btn-primary{background:var(--navy);color:#fff;width:100%;padding:15px;font-size:16px}
+.btn-primary:hover{background:var(--navy2)}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed;transform:none}
+#add-expense-btn{background:var(--pink);color:var(--ink);font-weight:800}
+#add-expense-btn:hover{background:var(--pink2)}
+.btn-secondary{background:var(--bg3);color:var(--text)}
+.btn-secondary:hover{background:var(--bg4)}
+.btn-ghost{background:transparent;color:var(--text2);border:1px solid var(--border2)}
+.btn-ghost:hover{background:var(--bg3);color:var(--text)}
+.btn-sm{padding:6px 12px;font-size:13px;min-height:34px}
+
+/* ── Trip Hero (replaces top nav) ──────────────────────── */
+#app-screen{display:none;flex-direction:column;min-height:100vh}
+.trip-hero{position:relative;background:var(--navy);color:#fff;border-radius:0 0 32px 32px;padding:14px 18px 62px;overflow:visible;z-index:20}
+.hero-top{display:flex;align-items:center;gap:10px;min-height:44px}
+.nav-logo{font-size:17px;font-weight:800;letter-spacing:-.3px;white-space:nowrap;display:flex;align-items:center;gap:6px;color:#fff}
+.nav-logo .logo-mark{color:var(--pink)}
+.nav-actions{display:flex;align-items:center;gap:10px;margin-left:auto}
+.hero-body{margin-top:26px;display:flex;flex-direction:column;gap:6px;max-width:1280px}
+.trip-switch{position:relative;display:inline-flex;align-items:center;gap:8px;align-self:flex-start;max-width:100%;cursor:pointer}
+.trip-switch h1{font-size:38px;font-weight:800;line-height:1.02;letter-spacing:-1.2px;color:#fff;overflow-wrap:anywhere}
+.trip-switch svg{flex-shrink:0;opacity:.75}
+.nav-trip-select{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:16px}
+.hero-meta{font-size:15px;font-weight:600;color:rgba(255,255,255,.78)}
+.avatar{width:40px;height:40px;border-radius:50%;background:var(--pink);display:inline-flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:var(--ink);cursor:pointer;flex-shrink:0;border:2px solid transparent;transition:border-color .2s}
+.avatar:hover{border-color:#fff}
+#user-avatar{background:var(--pink) !important;color:var(--ink) !important}
+.hero-top,.hero-body{max-width:1328px;margin-left:auto;margin-right:auto;width:100%}
+
+/* ── Profile Dropdown ──────────────────────────────────── */
+.profile-menu-wrap{position:relative;flex-shrink:0}
+.profile-dropdown{display:none;position:absolute;top:calc(100% + 10px);right:0;background:var(--bg2);border-radius:18px;min-width:210px;box-shadow:var(--shadow-lg);z-index:500;padding:6px;animation:fadeUp .18s ease;overflow:hidden;color:var(--text)}
+.profile-dropdown.open{display:block}
+.profile-dropdown-header{padding:9px 12px 6px;font-size:13px;font-weight:700;color:var(--text2)}
+.profile-dropdown-divider{height:1px;background:var(--border);margin:4px 0}
+.profile-dropdown-item{display:flex;align-items:center;gap:8px;width:100%;padding:11px 12px;border:none;background:transparent;color:var(--text);font-size:15px;font-weight:600;border-radius:12px;cursor:pointer;text-align:left;font-family:inherit;transition:background .15s}
+.profile-dropdown-item:hover{background:var(--bg3)}
+.profile-dropdown-danger{color:var(--danger) !important}
+.profile-dropdown-danger:hover{background:#fdecee !important}
+
+/* ── Stats Card (overlaps the hero) ────────────────────── */
+.stats-bar{position:relative;z-index:21;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));margin:-40px 14px 0;background:var(--bg2);border-radius:24px;box-shadow:var(--shadow);padding:14px 6px}
+.stat-item{padding:2px 6px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border-right:1px solid var(--border)}
+.stat-item:last-child{border-right:none}
+.stat-value{font-size:18px;font-weight:800;letter-spacing:-.4px;line-height:1.15;white-space:nowrap}
+.stat-label{font-size:12px;font-weight:600;color:var(--text2)}
+
+/* ── Layout ────────────────────────────────────────────── */
+.main-content{display:grid;grid-template-columns:380px minmax(0,1fr) 360px;gap:16px;padding:18px 16px 32px;max-width:1360px;width:100%;margin:0 auto;align-items:start}
+.panel{background:var(--bg2);border-radius:24px;box-shadow:0 2px 10px rgba(23,33,61,0.05);overflow:hidden}
+.panel-header{padding:18px 20px 10px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.panel-title{font-size:20px;font-weight:800;letter-spacing:-.3px;color:var(--text)}
+.sub-header{padding:18px 20px 8px;font-size:17px;font-weight:800;color:var(--text)}
+.form-section{padding:10px 20px}
+.form-section:last-child{padding-bottom:22px}
+.section-label{font-size:13px;font-weight:700;color:var(--text);margin-bottom:7px}
+
+/* ── Amount Input ──────────────────────────────────────── */
+.amount-wrap{display:flex;align-items:center;background:var(--bg3);border:1.5px solid transparent;border-radius:var(--radius-sm);overflow:hidden;transition:border-color .18s,background .18s;width:100%;min-width:0}
+.amount-wrap:focus-within{border-color:var(--navy);background:var(--bg2)}
+.currency-badge{padding:0 12px;font-size:14px;font-weight:700;color:var(--text2);height:56px;display:flex;align-items:center;flex-shrink:0}
+.currency-select{appearance:none;-webkit-appearance:none;padding:0 12px;font-size:15px;font-weight:700;color:var(--text2);border:none;background:transparent;height:56px;cursor:pointer;font-family:inherit;outline:none;flex-shrink:0;max-width:96px}
+.currency-select:hover{color:var(--text)}
+.amount-field{flex:1;padding:10px 12px 10px 4px;background:transparent;border:none;color:var(--text);font-size:30px;font-weight:800;outline:none;width:100%;min-width:0;letter-spacing:-.8px}
+.amount-field::placeholder{color:var(--text3)}
+
+/* ── Split Toggle ──────────────────────────────────────── */
+.split-toggle{display:flex;background:var(--bg4);border-radius:14px;padding:4px;gap:4px}
+.split-btn{flex:1;padding:10px;border:none;background:transparent;color:var(--text2);font-size:14px;font-weight:600;border-radius:11px;transition:all .18s;white-space:nowrap;text-align:center}
+.split-btn.active{background:var(--bg2);color:var(--text);box-shadow:0 2px 8px rgba(23,33,61,0.10)}
+
+/* ── Member Checkboxes ─────────────────────────────────── */
+.mcheck-row{display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--bg3);border-radius:16px;cursor:pointer;user-select:none;margin-bottom:6px;transition:background .18s}
+.mcheck-row:hover{background:var(--bg4)}
+.mcheck-row input[type=checkbox]{width:20px;height:20px;accent-color:var(--navy);cursor:pointer;flex-shrink:0}
+.mcheck-row .mname{font-size:15px;flex:1;font-weight:600}
+.mcheck-row .mshare{font-size:14px;font-weight:700;color:var(--text2);min-width:64px;text-align:right}
+
+/* ── Expense List ──────────────────────────────────────── */
+.expense-list{padding:4px 12px 14px}
+.expense-card{background:var(--bg2);border-radius:18px;padding:12px 12px;margin-bottom:4px;position:relative;transition:background .18s;cursor:default}
+.expense-card:hover{background:var(--bg3)}
+.expense-card-main{display:flex;align-items:center;gap:12px}
+.expense-card-actions{display:none;align-items:center;justify-content:space-between;gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)}
+.expense-card:hover .expense-card-actions{display:flex}
+.expense-card-hint{font-size:12px;color:var(--text3);display:none}
+.expense-card:hover .expense-card-hint{display:block}
+.expense-emoji{width:44px;height:44px;background:var(--bg4);border-radius:15px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.expense-info{flex:1;min-width:0}
+.expense-desc{font-size:16px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.expense-meta{font-size:13px;color:var(--text2);margin-top:1px}
+.expense-right{text-align:right;flex-shrink:0}
+.expense-amount{font-size:16px;font-weight:800}
+.expense-per{font-size:12px;color:var(--text2);margin-top:1px}
+.del-btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:8px 14px;border-radius:99px;border:none;background:#fdecee;color:var(--danger);font-size:13px;font-weight:700;cursor:pointer;transition:background .15s;white-space:nowrap}
+.del-btn:hover{background:#fbd9dd}
+
+/* ── Skeleton Loader ───────────────────────────────────── */
+@keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
+.skeleton{background:linear-gradient(90deg,var(--bg3) 25%,var(--bg4) 50%,var(--bg3) 75%);background-size:800px 100%;animation:shimmer 1.4s infinite;border-radius:8px}
+.skel-card{padding:12px;margin-bottom:4px;display:flex;gap:12px;align-items:center}
+.skel-emoji{width:44px;height:44px;border-radius:15px;flex-shrink:0}
+.skel-lines{flex:1;display:flex;flex-direction:column;gap:7px}
+.skel-line{height:12px}
+.skel-line.wide{width:65%}
+.skel-line.narrow{width:40%}
+.skel-amount{width:64px;height:28px;border-radius:8px;flex-shrink:0}
+
+/* ── Delete Confirmation ───────────────────────────────── */
+.expense-card.confirming{background:#fdf2f3}
+.confirm-del-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid rgba(179,38,30,.18)}
+.confirm-del-msg{font-size:13px;color:#8c1d16;font-weight:600}
+.confirm-del-yes{padding:8px 14px;border-radius:99px;border:none;background:var(--danger);color:#fff;font-size:13px;font-weight:700;cursor:pointer}
+.confirm-del-no{padding:8px 14px;border-radius:99px;border:none;background:var(--bg4);color:var(--text);font-size:13px;font-weight:700;cursor:pointer}
+
+/* ── Empty / No-Trip States ────────────────────────────── */
+.empty-state{text-align:center;padding:44px 20px;color:var(--text2)}
+.empty-icon{font-size:38px;margin-bottom:10px}
+.empty-state h3{font-size:18px;font-weight:800;color:var(--text);margin-bottom:4px}
+.empty-state p{font-size:14px}
+.no-trip{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;min-height:300px;padding:40px 24px;text-align:center;color:var(--text2)}
+.no-trip .big-icon{font-size:48px;animation:float 3s ease-in-out infinite}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+.no-trip h3{font-size:20px;font-weight:800;color:var(--text);letter-spacing:-.3px}
+.no-trip p{font-size:14px;max-width:240px;line-height:1.55}
+.no-trip-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:4px}
+.no-trip-btn{padding:12px 18px;border-radius:99px;border:none;background:var(--navy);color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit}
+.no-trip-btn+.no-trip-btn{background:var(--bg4);color:var(--text)}
+
+/* ── Balance Panel ─────────────────────────────────────── */
+#balance-list{padding:0 8px}
+.balance-card{padding:12px 12px;border-radius:16px}
+.brow{display:flex;align-items:center;gap:10px;margin-bottom:7px}
+.bavatar{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#fff;flex-shrink:0}
+.bname{font-size:15px;font-weight:700;flex:1}
+.bnet{font-size:15px;font-weight:800}
+.bnet.pos{color:var(--success)}.bnet.neg{color:#8f2a4b}.bnet.zero{color:var(--text3)}
+.bbar-wrap{width:100%;height:6px;background:var(--bg4);border-radius:3px;overflow:hidden;margin-bottom:5px}
+.bbar{height:100%;border-radius:3px;transition:width .5s ease}
+.bsub{display:flex;justify-content:space-between;font-size:12px;color:var(--text2)}
+.settle-row{display:flex;flex-direction:column;gap:8px;margin:6px 12px;padding:14px 16px;background:var(--bg3);border-radius:18px}
+.settle-row:last-child{margin-bottom:16px}
+.settle-row-top{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;font-size:15px}
+.sfrom{font-weight:800;color:var(--text);white-space:nowrap}
+.sarrow{color:var(--text2);font-size:13px;font-weight:500;white-space:nowrap}
+.sto{font-weight:800;color:var(--text);white-space:nowrap}
+.settle-row-bottom{display:flex;align-items:center;justify-content:space-between;padding-top:8px;border-top:1px solid var(--border)}
+.settle-label{font-size:13px;color:var(--text2);font-weight:600}
+.samount{font-weight:800;background:var(--bg2);padding:5px 12px;border-radius:99px;font-size:15px;white-space:nowrap;color:var(--text)}
+
+/* ── Split Warning Banner ──────────────────────────────── */
+.splits-warning{display:none;margin:4px 12px 8px;padding:10px 12px;background:#fff4e0;border-radius:14px;font-size:13px;color:#6b4100;align-items:center;gap:8px}
+.splits-warning.visible{display:flex}
+.splits-warning-text{flex:1;line-height:1.4}
+.splits-recalc-btn{flex-shrink:0;padding:7px 12px;border-radius:99px;border:none;background:var(--bg4);color:var(--text);font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:inherit}
+.splits-recalc-btn:hover{background:var(--bg3)}
+.splits-warning .splits-recalc-btn{background:#ffe2b0;color:#5a3700}
+
+/* ── Modals ────────────────────────────────────────────── */
+.modal-overlay{position:fixed;inset:0;background:rgba(16,26,48,.45);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);z-index:1000;display:none;align-items:center;justify-content:center;padding:16px}
+.modal-overlay.open{display:flex}
+.modal,.modal-box{background:var(--bg2);border-radius:28px;padding:26px 24px;width:100%;max-width:450px;box-shadow:var(--shadow-lg);max-height:90vh;overflow-y:auto;animation:modalIn .22s ease}
+@keyframes modalIn{from{opacity:0;transform:scale(.96) translateY(8px)}to{opacity:1;transform:none}}
+.modal h2,.modal-title{font-size:22px;font-weight:800;margin-bottom:18px;letter-spacing:-.4px;color:var(--text)}
+.modal-footer{display:flex;gap:9px;margin-top:18px;justify-content:flex-end}
+.invite-code-box{background:var(--bg3);border:2px dashed var(--border2);border-radius:18px;padding:22px;text-align:center;font-size:30px;font-weight:800;letter-spacing:8px;color:var(--text);margin:14px 0;cursor:pointer;user-select:all;transition:background .18s}
+.invite-code-box:hover{background:var(--bg4)}
+.invite-hint{font-size:13px;color:var(--text2);text-align:center}
+.modal-actions{display:flex;gap:8px;margin-top:16px}
+#edit-expense-modal .form-input,#edit-expense-modal .currency-select{background:var(--bg3)}
+
+/* ── Toast ─────────────────────────────────────────────── */
+.toast-wrap{position:fixed;bottom:24px;right:20px;z-index:2000;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+.toast{padding:12px 16px;border-radius:16px;font-size:14px;font-weight:600;box-shadow:var(--shadow-lg);pointer-events:auto;animation:tIn .28s ease;display:flex;align-items:center;gap:8px;max-width:320px}
+@keyframes tIn{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
+@keyframes tOut{to{transform:translateY(20px);opacity:0}}
+.toast.success{background:var(--navy);color:#fff}
+.toast.success span:first-child{color:var(--pink)}
+.toast.error{background:#fdecee;color:#8c1d16}
+.toast.info{background:var(--bg2);color:var(--text)}
+
+/* ── Misc ──────────────────────────────────────────────── */
+.spinner{width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;display:inline-block;flex-shrink:0}
+#add-expense-btn .spinner{border-color:rgba(16,26,48,.2);border-top-color:var(--ink)}
+@keyframes spin{to{transform:rotate(360deg)}}
+.realtime-dot{width:8px;height:8px;border-radius:50%;background:#7fe0a4;display:inline-block;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+
+/* ── Emoji Picker ──────────────────────────────────────── */
+.emoji-picker-btn{width:50px;height:50px;background:var(--bg4);border:none;border-radius:16px;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .18s}
+.emoji-picker-btn:hover{background:var(--bg3)}
+.emoji-grid{display:none;position:absolute;background:var(--bg2);border-radius:18px;padding:10px;z-index:9999;grid-template-columns:repeat(6,38px);gap:4px;box-shadow:var(--shadow-lg);top:56px;left:0}
+.emoji-grid.open{display:grid}
+.emoji-grid span{width:38px;height:38px;display:flex;align-items:center;justify-content:center;font-size:19px;cursor:pointer;border-radius:10px;transition:background .12s}
+.emoji-grid span:hover{background:var(--bg3)}
+.emoji-picker-wrap{position:relative}
+.edit-btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:8px 14px;border-radius:99px;border:none;background:var(--bg4);color:var(--text);font-size:13px;font-weight:700;cursor:pointer;transition:background .15s;white-space:nowrap}
+.edit-btn:hover{background:var(--bg3)}
+
+/* ── Mobile bottom bar (floating pill) ─────────────────── */
+.mob-tabs{display:none}
+.mob-tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border:none;background:transparent;cursor:pointer;color:#b7aecb;font-size:12px;font-weight:700;padding:6px 0;transition:color .18s;min-height:48px}
+.mob-tab.active{color:#fff}
+.mob-tab .tab-icon{display:flex;line-height:1}
+.mob-tab.mob-add{flex:0 0 auto;width:56px;height:56px;margin:0 6px;border-radius:50%;background:var(--pink);color:var(--ink);font-size:0;gap:0}
+.mob-tab.mob-add.active{box-shadow:0 0 0 4px rgba(245,163,191,.35)}
+
+/* ══════════════════════════════════════════════
+   RESPONSIVE
+══════════════════════════════════════════════ */
+@media(max-width:1100px){.main-content{grid-template-columns:320px minmax(0,1fr) 320px}}
+
+@media(min-width:761px){
+  .trip-hero{padding:16px 28px 70px}
+  .hero-body{margin-top:30px}
+  .trip-switch h1{font-size:46px}
+  .stats-bar{max-width:760px;margin:-44px auto 0;width:calc(100% - 32px)}
+  .panel{display:block !important}
+  #app-screen{padding-bottom:0}
+}
+
+@media(max-width:760px){
+  .main-content{display:block;padding:14px 14px 24px}
+  .panel{display:none}
+  .panel.mob-active{display:block}
+  .stat-value{font-size:16px}
+  .stat-label{font-size:11px}
+  .trip-switch h1{font-size:34px}
+
+  .mob-tabs{display:flex;align-items:center;position:fixed;left:14px;right:14px;bottom:calc(14px + env(safe-area-inset-bottom, 0px));height:var(--mob-tab-h);background:var(--navy);border-radius:32px;z-index:200;padding:0 8px;box-shadow:0 12px 30px rgba(23,33,61,.35)}
+  #app-screen{padding-bottom:calc(var(--mob-tab-h) + 34px)}
+  .toast-wrap{left:16px;right:16px;bottom:calc(var(--mob-tab-h) + 30px);align-items:center}
+
+  #left-panel{overflow-x:hidden}
+  #left-panel .form-section{max-width:100%}
+  .expense-card .expense-card-actions,.expense-card:hover .expense-card-actions{display:none}
+  .expense-card.show-actions .expense-card-actions,.expense-card.confirming .expense-card-actions{display:flex}
+  .expense-card.show-actions{background:var(--bg3)}
+  .expense-card{cursor:pointer}
+  .expense-card-hint{display:none !important}
+  .modal,.modal-box{padding:22px 18px;max-width:100%}
+  .modal-overlay{padding:10px;align-items:flex-end}
+  .modal,.modal-box{border-radius:28px 28px 22px 22px}
+}
+
+@media(max-width:380px){
+  .auth-card{padding:26px 18px}
+  .stat-value{font-size:14px}
+  .trip-switch h1{font-size:30px}
+}
+</style>
+</head>
+<body>
+<div class="toast-wrap" id="toast-wrap"></div>
+<div id="auth-screen">
+<div class="auth-card">
+<div class="auth-logo"><div class="logo-icon">&#9878;</div><h1>Balance</h1><p>Split expenses effortlessly</p></div>
+<div class="auth-tabs">
+<button class="auth-tab active" onclick="switchTab('login')">Sign In</button>
+<button class="auth-tab" onclick="switchTab('signup')">Create Account</button>
+</div>
+<div class="auth-error" id="auth-error"></div>
+<div id="login-form">
+<div class="form-group"><label class="form-label">Email</label><input type="email" class="form-input" id="login-email" placeholder="you@example.com" autocomplete="email"></div>
+<div class="form-group"><label class="form-label">Password</label><input type="password" class="form-input" id="login-password" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')handleLogin()"></div>
+<div style="text-align:right;margin-top:-6px;margin-bottom:12px"><a href="#" onclick="handleForgotPassword();return false;" style="font-size:12.5px;color:var(--accent2);text-decoration:none;opacity:.85" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.85">Forgot password?</a></div>
+<button class="btn btn-primary" id="login-btn" onclick="handleLogin()">Sign In</button>
+</div>
+<div id="signup-form" style="display:none">
+<div class="form-group"><label class="form-label">Full Name</label><input type="text" class="form-input" id="signup-name" placeholder="Jane Doe"></div>
+<div class="form-group"><label class="form-label">Email</label><input type="email" class="form-input" id="signup-email" placeholder="you@example.com"></div>
+<div class="form-group"><label class="form-label">Password</label><input type="password" class="form-input" id="signup-password" placeholder="Min. 8 characters" onkeydown="if(event.key==='Enter')handleSignup()"></div>
+<div class="form-group"><label class="form-label">Invite Code <span style="color:var(--text3);font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label><input type="text" class="form-input" id="signup-invite" placeholder="Paste invite code to join a trip" maxlength="8" style="text-transform:uppercase;letter-spacing:3px" autocomplete="off"></div>
+<button class="btn btn-primary" id="signup-btn" onclick="handleSignup()">Create Account</button>
+</div>
+</div></div>
+<div id="app-screen">
+<header class="trip-hero">
+<div class="hero-top">
+<div class="nav-logo"><span class="logo-mark">⚖</span> <span>Balance</span></div>
+<div class="nav-actions">
+<span class="realtime-dot" title="Live"></span>
+<div class="profile-menu-wrap">
+  <div class="avatar" id="user-avatar" onclick="toggleProfileMenu(event)" title="Account">?</div>
+  <div class="profile-dropdown" id="profile-dropdown">
+    <div class="profile-dropdown-header" id="profile-dropdown-name">My Account</div>
+    <div class="profile-dropdown-divider"></div>
+    <button class="profile-dropdown-item" onclick="openModal('join-modal');closeProfileMenu()">&#128279; Join Trip</button>
+    <button class="profile-dropdown-item" onclick="openModal('new-trip-modal');closeProfileMenu()">&#43; Add Trip</button>
+    <button class="profile-dropdown-item" id="invite-dropdown-btn" onclick="openInviteModal();closeProfileMenu()" style="display:none">&#128228; Invite Members</button>
+    <div class="profile-dropdown-divider"></div>
+    <button class="profile-dropdown-item profile-dropdown-danger" onclick="handleLogout()">&#x2192; Sign Out</button>
+  </div>
+</div>
+</div></div>
+<div class="hero-body">
+<div class="trip-switch">
+<h1 id="hero-trip-name">Your trips</h1>
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+<select class="nav-trip-select" id="trip-select" onchange="onTripChange()" aria-label="Switch trip"><option value="">&#8212; Select a trip &#8212;</option></select>
+</div>
+<p class="hero-meta" id="hero-trip-meta"></p>
+</div>
+</header>
+<div class="stats-bar">
+<div class="stat-item"><div class="stat-value" id="stat-total">$0.00</div><div class="stat-label">Total Spent</div></div>
+<div class="stat-item"><div class="stat-value" id="stat-per">$0.00</div><div class="stat-label">Per Person</div></div>
+<div class="stat-item"><div class="stat-value" id="stat-balance">—</div><div class="stat-label">My Balance</div></div>
+<div class="stat-item"><div class="stat-value" id="stat-count">0</div><div class="stat-label">Expenses</div></div>
+</div>
+<div class="main-content">
+<div class="panel" id="left-panel">
+<div id="no-trip-left" class="no-trip"><div class="big-icon">✈️</div><h3>Ready to split?</h3><p>Create a new trip or join one with an invite code.</p><div class="no-trip-actions"><button class="no-trip-btn" onclick="openModal('new-trip-modal')">+ New Trip</button><button class="no-trip-btn" onclick="openModal('join-modal')">🔗 Join Trip</button></div><div id="wrong-account-hint" style="display:none;margin-top:24px;padding:14px 16px;background:rgba(91,141,238,0.08);border:1px solid rgba(91,141,238,0.2);border-radius:10px;text-align:center"><p style="font-size:13px;color:var(--text2);margin-bottom:10px">Having trouble seeing your trips?</p><button onclick="handleLogout()" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:14px;font-weight:600;cursor:pointer;width:100%">Tap here to sign in again</button></div></div>
+<div id="expense-form-wrap" style="display:none">
+<div class="panel-header"><span class="panel-title">Log Expense</span><span id="trip-currency-badge" style="font-size:11px;font-weight:700;color:var(--accent2)"></span></div>
+<div class="form-section"><div class="section-label">Description</div>
+<div style="display:flex;align-items:center;gap:8px">
+  <div class="emoji-picker-wrap">
+    <button class="emoji-picker-btn" id="emoji-btn" onclick="toggleEmojiGrid(event)" type="button" title="Pick emoji">🧾</button>
+    <div class="emoji-grid" id="emoji-grid"></div>
+  </div>
+  <input type="text" class="form-input" id="exp-desc" placeholder="e.g. Dinner, Hotel, Taxi..." autocomplete="off" style="flex:1">
+</div></div>
+<div class="form-section"><div class="section-label">Amount</div>
+<div class="amount-wrap"><select class="currency-select" id="currency-select" onchange="onCurrencyChange()"><option value="USD">$ USD</option><option value="EUR">&#8364; EUR</option><option value="GBP">&pound; GBP</option><option value="AUD">$ AUD</option><option value="CAD">$ CAD</option><option value="JPY">&yen; JPY</option><option value="CHF">Fr CHF</option><option value="NZD">$ NZD</option><option value="SGD">$ SGD</option><option value="MXN">$ MXN</option><option value="THB">&#3647; THB</option><option value="ZAR">R ZAR</option><option value="INR">&#8377; INR</option><option value="BRL">R$ BRL</option></select>
+<input type="number" class="amount-field" id="exp-amount" placeholder="0.00" min="0" step="0.01" oninput="updateShares()"></div></div>
+<div class="form-section"><div class="section-label">Date</div>
+<input type="date" class="form-input" id="exp-date"></div>
+<div class="form-section"><div class="section-label">Paid by</div>
+<select class="select-input" id="exp-paidby"></select></div>
+<div class="form-section"><div class="section-label">Split</div>
+<div class="split-toggle">
+<button class="split-btn active" id="split-equal-btn" onclick="setSplit('equal')">&#9881; Everyone Equally</button>
+<button class="split-btn" id="split-custom-btn" onclick="setSplit('custom')">&#9998; Custom</button>
+</div></div>
+<div class="form-section" id="custom-members-wrap" style="display:none">
+<div class="section-label">Split between</div>
+<div id="member-checks"></div>
+</div>
+<div class="form-section">
+<button class="btn btn-primary" id="add-expense-btn" onclick="handleAddExpense()">&#43; Add Expense</button>
+</div>
+</div></div>
+<div class="panel mob-active" id="mid-panel">
+<div id="no-trip-mid" class="no-trip"><div class="big-icon">✈️</div><h3>Ready to split?</h3><p>Pick a trip above, start a new one, or join with an invite code.</p><div class="no-trip-actions"><button class="no-trip-btn" onclick="openModal('new-trip-modal')">+ New Trip</button><button class="no-trip-btn" onclick="openModal('join-modal')">Join Trip</button></div></div>
+<div id="expense-list-wrap" style="display:none">
+<div class="panel-header"><span class="panel-title">Expenses</span><span id="expense-count-badge" style="font-size:11px;color:var(--text3)"></span></div>
+<div class="expense-list" id="expense-list"></div>
+</div></div>
+<div class="panel" id="right-panel">
+<div id="no-trip-right" class="no-trip"><div class="big-icon">⚖️</div><h3>Balances</h3><p>Select a trip to see who paid what and who owes who.</p></div>
+<div id="balance-wrap" style="display:none">
+<div class="panel-header"><span class="panel-title">Balances</span><button class="splits-recalc-btn" onclick="handleRecalcAllSplits()" title="Recalculate all equal splits based on current members">↻ Recalculate</button></div>
+<div class="splits-warning" id="splits-warning"><span class="splits-warning-text">⚠️ Split totals may be off — a member likely joined after some expenses were added.</span><button class="splits-recalc-btn" onclick="handleRecalcAllSplits()">Fix Now</button></div>
+<div id="balance-list"></div>
+<div class="sub-header">Settlements</div>
+<div id="settle-list"></div>
+</div></div>
+</div></div>
+<!-- Mobile bottom tab bar -->
+<nav class="mob-tabs" id="mob-tabs">
+  <button class="mob-tab active" id="tab-expenses" onclick="switchMobTab('expenses')">
+    <span class="tab-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg></span>Expenses
+  </button>
+  <button class="mob-tab mob-add" id="tab-log" onclick="switchMobTab('log')" aria-label="Add expense">
+    <span class="tab-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#101a30" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></span>
+  </button>
+  <button class="mob-tab" id="tab-balance" onclick="switchMobTab('balance')">
+    <span class="tab-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v18M5 7h14M3 14l2-7 2 7a2.5 2.5 0 0 1-4 0zM17 14l2-7 2 7a2.5 2.5 0 0 1-4 0zM8 21h8"/></svg></span>Balance
+  </button>
+</nav>
+</div>
+<div class="modal-overlay" id="new-trip-modal">
+<div class="modal"><h2>&#127758; Create New Trip</h2>
+<div class="form-group"><label class="form-label">Trip Name</label><input type="text" class="form-input" id="nt-name" placeholder="Summer Vacation 2026"></div>
+<div class="form-group"><label class="form-label">Description</label><input type="text" class="form-input" id="nt-desc" placeholder="Optional description"></div>
+<div class="form-row">
+<div class="form-group"><label class="form-label">Start Date</label><input type="date" class="form-input" id="nt-start"></div>
+<div class="form-group"><label class="form-label">End Date</label><input type="date" class="form-input" id="nt-end"></div>
+</div>
+<div class="form-group"><label class="form-label">Base Currency</label>
+<select class="select-input" id="nt-currency">
+<option value="USD">USD &#8212; US Dollar</option>
+<option value="EUR">EUR &#8212; Euro</option>
+<option value="GBP">GBP &#8212; British Pound</option>
+<option value="JPY">JPY &#8212; Japanese Yen</option>
+<option value="AUD">AUD &#8212; Australian Dollar</option>
+<option value="CAD">CAD &#8212; Canadian Dollar</option>
+<option value="CHF">CHF &#8212; Swiss Franc</option>
+<option value="MXN">MXN &#8212; Mexican Peso</option>
+</select></div>
+<div class="modal-footer">
+<button class="btn btn-secondary" onclick="closeModal('new-trip-modal')">Cancel</button>
+<button class="btn btn-primary" style="width:auto" id="create-trip-btn" onclick="handleCreateTrip()">Create Trip</button>
+</div></div></div>
+<div class="modal-overlay" id="join-modal">
+<div class="modal"><h2>&#128279; Join a Trip</h2>
+<div class="form-group"><label class="form-label">Invite Code</label>
+<input type="text" class="form-input" id="join-code" placeholder="Enter 8-character code" maxlength="8" style="text-transform:uppercase;letter-spacing:4px;font-size:20px;font-weight:700"></div>
+<div class="modal-footer">
+<button class="btn btn-secondary" onclick="closeModal('join-modal')">Cancel</button>
+<button class="btn btn-primary" style="width:auto" id="join-btn" onclick="handleJoinTrip()">Join Trip</button>
+</div></div></div>
+<div class="modal-overlay" id="invite-modal">
+<div class="modal"><h2>&#128228; Invite to Trip</h2>
+<p style="color:var(--text2);font-size:13px;margin-bottom:4px">Share this code with teammates:</p>
+<div class="invite-code-box" id="invite-code-display" onclick="copyInviteCode()">&#8212;&#8212;&#8212;&#8212;</div>
+<p class="invite-hint">&#128203; Click to copy &bull; Expires in 7 days</p>
+<div class="modal-footer"><button class="btn btn-primary" style="width:auto" onclick="closeModal('invite-modal')">Done</button></div>
+</div></div>
+<div class="modal-overlay" id="reset-password-modal">
+<div class="modal"><h2>&#128274; Set New Password</h2>
+<p style="color:var(--text2);font-size:13px;margin-bottom:16px">Choose a new password for your account.</p>
+<div class="form-group"><label class="form-label">New Password</label><input type="password" class="form-input" id="reset-password-new" placeholder="Min. 8 characters" autocomplete="new-password"></div>
+<div class="form-group"><label class="form-label">Confirm Password</label><input type="password" class="form-input" id="reset-password-confirm" placeholder="Repeat new password" autocomplete="new-password" onkeydown="if(event.key==='Enter')handleResetPassword()"></div>
+<div class="modal-footer" style="justify-content:flex-end">
+<button class="btn btn-primary" style="width:auto" id="reset-password-btn" onclick="handleResetPassword()">Set New Password</button>
+</div></div></div>
+<script>
+function dbg(msg,col){console.log(new Date().toISOString().slice(11,19)+" "+msg);}
+const SURL='https://gvgibiryxnngffvvavvr.supabase.co';
+const SKEY='sb_publishable_WfYt_hF8bWDVpH4vgVOMNQ_yOnLF45s';
+const {createClient}=supabase;
+const sb=createClient(SURL,SKEY);
+window.addEventListener('DOMContentLoaded',function(){
+  try{
+    if(!sb||!sb.auth){
+      document.body.innerHTML='<div style="color:red;padding:40px;font-family:monospace">Supabase client failed to initialize. Check your API key and URL.</div>';
+    }
+  }catch(e){
+    document.body.innerHTML='<div style="color:red;padding:40px;font-family:monospace">Init error: '+e.message+'</div>';
+  }
+});
+const SYMBOLS={USD:'$',EUR:'€',GBP:'£',JPY:'¥',AUD:'A$',CAD:'C$',CHF:'Fr',MXN:'MX$'};
+const EMOJIS=['🍕','🏨','🚕','✈️','🍺','🛒','🎵','💰','🍳','🍽️','💻','💊','🎤','🚂','⚽','🏊','🏋️','😎','🎿','🌮','🍜','🎭','🏖️','🎪','🚢','🏔️','🎯','🛍️','☕','🍦'];
+let _selectedEmoji = '🧾';
+let state={user:null,profile:null,trips:[],currentTripId:null,members:[],expenses:[],splitMode:'equal',realtimeSub:null};
+function $(id){return document.getElementById(id);}
+function show(id){const el=$(id);if(el)el.style.display='';}
+function hide(id){const el=$(id);if(el)el.style.display='none';}
+function showFlex(id){const el=$(id);if(el)el.style.display='flex';}
+function toast(msg,type='info',dur=3500){
+  const w=$('toast-wrap'),d=document.createElement('div');
+  d.className='toast '+type;
+  const icons={success:'✓',error:'✗',info:'ℹ'};
+  d.innerHTML='<span>'+icons[type]+'</span><span>'+msg+'</span>';
+  w.appendChild(d);
+  setTimeout(()=>{d.style.animation='tOut .3s ease forwards';setTimeout(()=>d.remove(),300);},dur);
+}
+function fmt(amount,currency='USD'){
+  const sym=SYMBOLS[currency]||currency+' ';
+  const num=Number(amount);
+  // Use Intl.NumberFormat for proper thousand separators
+  const formatted=new Intl.NumberFormat('en-US',{
+    minimumFractionDigits:2,
+    maximumFractionDigits:2
+  }).format(Math.abs(num));
+  return (num<-0.0049?'-':'')+sym+formatted;
+}
+
+// Mobile tab switching
+function switchMobTab(tab){
+  // Only meaningful on mobile (≤760px)
+  const panels={log:'left-panel',expenses:'mid-panel',balance:'right-panel'};
+  Object.values(panels).forEach(function(pid){
+    const el=document.getElementById(pid);
+    if(el)el.classList.remove('mob-active');
+  });
+  const active=document.getElementById(panels[tab]);
+  if(active)active.classList.add('mob-active');
+  // Update tab button states
+  ['log','expenses','balance'].forEach(function(t){
+    const btn=document.getElementById('tab-'+t);
+    if(btn)btn.classList.toggle('active',t===tab);
+  });
+}
+function emojiFor(desc, storedEmoji){
+  if(storedEmoji) return storedEmoji;
+  return '🧾';
+}
+function avatarColor(name){
+  const colors=['#6366f1','#8b5cf6','#ec4899','#14b8a6','#f59e0b','#10b981','#3b82f6','#ef4444'];
+  let h=0;for(let c of (name||'?'))h=(h*31+c.charCodeAt(0))%colors.length;
+  return colors[h];
+}
+function getName(profile){
+  if(!profile)return 'Unknown';
+  return profile.name||(profile.email?profile.email.split('@')[0]:'Unknown');
+}
+function getInitials(name){
+  const parts=(name||'?').split(' ').filter(Boolean);
+  return parts.length>1?parts[0][0]+parts[1][0]:parts[0]?parts[0][0]:'?';
+}
+function todayStr(){return new Date().toISOString().split('T')[0];}
+function openModal(id){$(id).classList.add('open');}
+function closeModal(id){$(id).classList.remove('open');}
+function switchTab(tab){
+  const isLogin=tab==='login';
+  show(isLogin?'login-form':'signup-form');
+  hide(isLogin?'signup-form':'login-form');
+  document.querySelectorAll('.auth-tab').forEach((b,i)=>b.classList.toggle('active',isLogin?i===0:i===1));
+  $('auth-error').style.display='none';
+}
+function showAuthError(msg){const e=$('auth-error');e.textContent=msg;e.style.display='block';}
+
+async function handleLogin(){_authBusy=false;
+  const email=$('login-email').value.trim(),pass=$('login-password').value;
+  if(!email||!pass){showAuthError('Please fill in all fields.');return;}
+  const btn=$('login-btn');btn.disabled=true;btn.innerHTML='<span class="spinner"></span> Signing in...';
+  try{
+    const {data,error}=await sb.auth.signInWithPassword({email,password:pass});
+    btn.disabled=false;btn.textContent='Sign In';
+    if(error)showAuthError('Login error: '+error.message+' (code: '+error.status+')');
+  }catch(e){
+    btn.disabled=false;btn.textContent='Sign In';
+    showAuthError('Exception: '+e.message+'. Check console for details.');
+    console.error('Login exception:',e);
+  }
+}
+async function handleSignup(){
+  const name=$('signup-name').value.trim(),email=$('signup-email').value.trim(),pass=$('signup-password').value;
+  const inviteCode=($('signup-invite').value||'').trim().toUpperCase();
+  if(!name||!email||!pass){showAuthError('Please fill in all fields.');return;}
+  if(pass.length<8){showAuthError('Password must be at least 8 characters.');return;}
+  const btn=$('signup-btn');btn.disabled=true;btn.innerHTML='<span class="spinner"></span> Creating...';
+  const {data,error}=await sb.auth.signUp({email,password:pass,options:{data:{name}}});
+  btn.disabled=false;btn.textContent='Create Account';
+  if(error){showAuthError(error.message);return;}
+  if(data.user){
+    await sb.from('profiles').upsert({id:data.user.id,email,name},{onConflict:'id'});
+    toast('Account created! Welcome to Balance.','success');
+    if(inviteCode)state._pendingInvite=inviteCode;
+  }
+}
+async function handleForgotPassword(){
+  const email=$('login-email').value.trim();
+  if(!email){showAuthError('Please enter your email address first.');return;}
+  try{
+    const {error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:window.location.origin+window.location.pathname});
+    if(error){showAuthError(error.message);return;}
+    toast('Password reset email sent! Check your inbox.','success',5000);
+  }catch(e){showAuthError('Could not send reset email: '+e.message);}
+}
+async function handleResetPassword(){
+  const newPass=$('reset-password-new').value;
+  const confirmPass=$('reset-password-confirm').value;
+  if(newPass.length<8){toast('Password must be at least 8 characters.','error');return;}
+  if(newPass!==confirmPass){toast('Passwords do not match.','error');return;}
+  const btn=$('reset-password-btn');btn.disabled=true;btn.innerHTML='<span class="spinner"></span> Saving...';
+  try{
+    const {error}=await sb.auth.updateUser({password:newPass});
+    btn.disabled=false;btn.textContent='Set New Password';
+    if(error){toast('Error updating password: '+error.message,'error');return;}
+    toast('Password updated successfully!','success');
+    closeModal('reset-password-modal');
+    $('reset-password-new').value='';$('reset-password-confirm').value='';
+    _inPasswordRecovery=false;
+    const {data:{session}}=await sb.auth.getSession();
+    if(session&&session.user) await handleUser(session.user);
+  }catch(e){
+    btn.disabled=false;btn.textContent='Set New Password';
+    toast('Exception: '+e.message,'error');
+  }
+}
+async function handleLogout(){
+  // Wrap network calls in a timeout — if the realtime socket or auth server is
+  // hung (common after device sleep), logout must not freeze at the await.
+  if(state.realtimeSub){try{await Promise.race([sb.removeChannel(state.realtimeSub),new Promise(function(r){setTimeout(r,1500);})]);}catch(_){}state.realtimeSub=null;}
+  try{await Promise.race([sb.auth.signOut(),new Promise(function(r){setTimeout(r,1500);})]);}catch(_){}
+  try{localStorage.clear();}catch(_){}
+  location.reload();
+}
+function withTimeout(p,ms){return Promise.race([p,new Promise(function(_,rej){setTimeout(function(){rej(new Error('timeout'));},ms);})]);}
+// Handle authenticated user - show app and load data.
+// _handleUserRunning prevents concurrent execution; the trips-length check allows
+// a second call to retry if the first load failed (e.g. expired token on refresh).
+let _handleUserRunning=false;
+async function handleUser(user){
+  if(_handleUserRunning) return;
+  if(state.user&&state.user.id===user.id&&state.trips.length>0) return;
+  _handleUserRunning=true;
+  try{
+  state.user=user;
+  // Use session data directly - fast, no DB query blocking
+  state.profile={id:user.id,email:user.email,name:user.user_metadata?.name||user.email.split('@')[0]};
+  const n=getName(state.profile);
+  const avatarEl=$('user-avatar');
+  if(avatarEl){avatarEl.textContent=getInitials(n);avatarEl.style.background=avatarColor(n);}
+  $('auth-screen').style.display='none';
+  $('app-screen').style.display='flex';
+  try{
+    await loadUserTrips();
+  }catch(e){
+    console.error('loadUserTrips failed:',e);
+    // Show the no-trip panel so the user has a visible recovery path.
+    // If it looks like an auth/token error, wipe the session automatically.
+    const msg=(e&&e.message||'').toLowerCase();
+    const isAuthErr=msg.includes('jwt')||msg.includes('token')||msg.includes('401')||msg.includes('unauthorized')||(e&&e.status===401);
+    if(isAuthErr){
+      try{localStorage.clear();}catch(_){}
+      location.reload();
+      return;
+    }
+    state.trips=[];
+    renderTripSelect();
+    renderNoTrip();
+    // Show the "sign in again" hint immediately rather than after a delay
+    const hint=$('wrong-account-hint');
+    if(hint){
+      hint.style.display='block';
+      const hp=hint.querySelector('p');
+      if(hp) hp.textContent='Could not load your trips — tap below to reload.';
+    }
+  }
+  setupRealtime();
+  // Load full profile from DB in background (non-blocking - just updates display name)
+  sb.from('profiles').select('*').eq('id',user.id).single().then(function(res){
+    if(res.data){
+      state.profile=res.data;
+      const n2=getName(res.data);
+      const el=$('user-avatar');
+      if(el){el.textContent=getInitials(n2);el.style.background=avatarColor(n2);}
+      // Upsert to ensure profile exists
+    } else {
+      sb.from('profiles').upsert({id:user.id,email:user.email,name:state.profile.name},{onConflict:'id'}).then(function(){}).catch(function(){});
+    }
+  }).catch(function(){}); // profile load failure is non-fatal
+  // Auto-join from invite code
+  const pendingCode=state._pendingInvite||new URLSearchParams(window.location.search).get('invite');
+  if(pendingCode){state._pendingInvite=null;await autoJoinByCode(pendingCode.trim().toUpperCase());}
+  }finally{ _handleUserRunning=false; }
+}
+
+function handleSignOut(){
+  state={user:null,profile:null,trips:[],currentTripId:null,members:[],expenses:[],splitMode:'equal',realtimeSub:null};
+  const urlCode=new URLSearchParams(window.location.search).get('invite');
+  if(urlCode){$('signup-invite').value=urlCode.trim().toUpperCase();switchTab('signup');toast('Sign up or log in to join the trip!','info',5000);}
+  $('auth-screen').style.display='flex';
+  $('app-screen').style.display='none';
+}
+
+// ── Auth initialisation ──────────────────────────────────────────────
+// Detect password-recovery links synchronously from the URL hash BEFORE any
+// Supabase events fire.  Supabase puts  type=recovery  in the fragment, so
+// reading it upfront lets us skip the old setTimeout(0) deferral entirely.
+let _inPasswordRecovery=(function(){
+  try{return new URLSearchParams(window.location.hash.substring(1)).get('type')==='recovery';}
+  catch(_){return false;}
+})();
+
+(function initAuth(){
+  // IMPORTANT: This callback must NEVER use await.  Supabase's internal auth
+  // state-machine waits for onAuthStateChange listeners to return before it
+  // considers the session "ready" and allows API calls (select/insert/etc.)
+  // to proceed.  If we await handleUser() here — which itself awaits DB
+  // queries — we get a deadlock: our callback waits for the query, the query
+  // waits for auth to be ready, auth waits for our callback.  Fire-and-forget
+  // with .catch() avoids this entirely.
+  sb.auth.onAuthStateChange(function(event,session){
+    dbg('auth event: '+event);
+
+    // ── Password recovery ──────────────────────────────────────────
+    if(event==='PASSWORD_RECOVERY'){
+      _inPasswordRecovery=true;
+      $('auth-screen').style.display='flex';
+      $('app-screen').style.display='none';
+      openModal('reset-password-modal');
+      return;
+    }
+
+    // ── Initial session (page load / refresh) ──────────────────────
+    if(event==='INITIAL_SESSION'){
+      if(_inPasswordRecovery) return;
+      if(session&&session.user) handleUser(session.user).catch(function(e){console.error('handleUser error:',e);});
+      else handleSignOut();
+      return;
+    }
+
+    // ── Explicit sign-in ───────────────────────────────────────────
+    // Fires on fresh login AND when any tab refreshes a token.
+    // handleUser's own guard (running-lock + trips-loaded check)
+    // deduplicates — we don't need to second-guess it here.
+    if(event==='SIGNED_IN'){
+      if(_inPasswordRecovery) return;
+      if(session&&session.user) handleUser(session.user).catch(function(e){console.error('handleUser error:',e);});
+      return;
+    }
+
+    // ── Sign-out ───────────────────────────────────────────────────
+    if(event==='SIGNED_OUT'){
+      _inPasswordRecovery=false;
+      handleSignOut();
+      return;
+    }
+
+    // ── Token refreshed ────────────────────────────────────────────
+    // Keep state.user current.  If trips never loaded (expired token on
+    // first try, RLS returned 0 rows), retry now with the fresh token.
+    if(event==='TOKEN_REFRESHED'&&session&&session.user){
+      state.user=session.user;
+      if(!_inPasswordRecovery&&state.user&&!state.trips.length&&!_handleUserRunning){
+        loadUserTrips().catch(function(){});
+      }
+    }
+  });
+})();
+
+// When the device wakes from sleep or the user switches back to this tab,
+// re-validate the session and reload data if needed. Without this, a device
+// that slept for hours can wake with an expired token and a stuck UI.
+(function(){
+  var _hiddenAt=Date.now(); // init to now so first visible event doesn't fire immediately
+  document.addEventListener('visibilitychange',function(){
+    if(document.visibilityState==='hidden'){_hiddenAt=Date.now();return;}
+    // Only act if the page was hidden for more than 60 seconds
+    if(!state.user||Date.now()-_hiddenAt<60000) return;
+    sb.auth.getSession().then(function(res){
+      var session=res.data&&res.data.session;
+      if(!session){
+        // Session expired while sleeping — clean logout
+        handleLogout();
+      } else if(state.currentTripId){
+        // Session valid, refresh trip data quietly
+        loadTripData().catch(function(){});
+      } else {
+        // Session valid but no trip loaded — retry
+        loadUserTrips().catch(function(){});
+      }
+    }).catch(function(){});
+  });
+})();
+
+// Back-forward cache (bfcache) guard: when the browser restores this page from
+// bfcache, re-validate the session in-place instead of calling location.reload().
+// A blind reload can itself be served from bfcache on iOS Safari / some Chromium
+// builds, creating an infinite reload loop that locks up the page.
+// We also cover the case where bfcache froze the page mid-load (auth done but
+// trips not yet fetched), which would leave the app in a permanent no-trip state.
+window.addEventListener('pageshow',function(e){
+  if(!e.persisted) return;
+  sb.auth.getSession().then(function(res){
+    var session=res.data&&res.data.session;
+    if(!session){
+      // Session expired while page was cached.
+      if(state.user) handleLogout(); else handleSignOut();
+    } else if(session.user){
+      if(!state.user){
+        // Page was frozen before auth finished — complete the login flow now.
+        handleUser(session.user).catch(function(){});
+      } else if(state.currentTripId){
+        // User and trip already loaded — quietly refresh trip data.
+        loadTripData().catch(function(){});
+      } else {
+        // User loaded but trips not yet fetched (frozen mid-load) — load them now.
+        loadUserTrips().catch(function(){});
+      }
+    }
+  }).catch(function(){});
+});
+
+async function autoJoinByCode(code){
+  if(!code||!state.user)return;
+  try{
+    const {data:inv,error}=await sb.from('trip_invite_codes').select('*').eq('code',code).eq('is_active',true).single();
+    if(error||!inv){toast('Invite code not found or expired.','error');return;}
+    if(inv.expires_at&&new Date(inv.expires_at)<new Date()){toast('This invite code has expired.','error');return;}
+    const already=state.trips.find(t=>t.id===inv.trip_id);
+    if(already){
+      state.currentTripId=inv.trip_id;
+      $('trip-select').value=inv.trip_id;
+      await loadTripData();
+      toast('You are already in this trip — loading it now.','info');
+      // Clean up URL
+      window.history.replaceState({},'',window.location.pathname);
+      return;
+    }
+    const {error:memErr}=await sb.from('trip_members').insert({trip_id:inv.trip_id,user_id:state.user.id,role:'member'});
+    if(memErr)throw memErr;
+    toast('Successfully joined the trip! Updating splits…','success');
+    state.currentTripId=inv.trip_id;
+    await loadUserTrips();
+    // loadUserTrips skips loadTripData when currentTripId is already set,
+    // so explicitly load trip data so the new member sees the trip immediately
+    await loadTripData();
+    await handleRecalcAllSplits();
+    // Clean up URL
+    window.history.replaceState({},'',window.location.pathname);
+  }catch(e){
+    toast('Could not join trip: '+e.message,'error');
+  }
+}
+async function loadUserTrips(){
+  dbg('loadUserTrips called');
+  const {data:memberships,error:mErr}=await sb.from('trip_members').select('trip_id').eq('user_id',state.user.id);
+  // Throw on real errors so the caller's try/catch handles it — don't treat a
+  // network/auth failure as "user has no trips" which causes the stuck blank state.
+  if(mErr) throw mErr;
+  if(!memberships||!memberships.length){
+    state.trips=[];renderTripSelect();
+    // Show a "wrong account?" recovery hint after 1s in case this is a hijacked session
+    const hint=$('wrong-account-hint');
+    if(hint) setTimeout(function(){if(!state.trips.length)hint.style.display='block';},1000);
+    return;
+  }
+  const ids=memberships.map(m=>m.trip_id);
+  const {data:trips,error:tErr}=await sb.from('trips').select('*').in('id',ids).eq('archived',false).order('created_at',{ascending:false});
+  if(tErr) throw tErr;
+  state.trips=trips||[];
+  renderTripSelect();
+  if(state.trips.length&&!state.currentTripId){
+    // Restore the last-viewed trip if it's still in the list, otherwise pick the first.
+    var saved=null;try{saved=localStorage.getItem('balance_last_trip');}catch(_){}
+    var match=saved&&state.trips.find(function(t){return t.id===saved;});
+    state.currentTripId=match?match.id:state.trips[0].id;
+    $('trip-select').value=state.currentTripId;
+    try{localStorage.setItem('balance_last_trip',state.currentTripId);}catch(_){}
+    // Wrap separately — a loadTripData failure (network blip loading members/expenses)
+    // must not bubble up to handleUser's catch and incorrectly wipe state.trips.
+    try{ await loadTripData(); }catch(e){ console.error('loadTripData failed:',e); }
+  }
+}
+function renderTripSelect(){
+  const sel=$('trip-select');
+  sel.innerHTML='<option value="">&#8212; Select a trip &#8212;</option>';
+  state.trips.forEach(t=>{const o=document.createElement('option');o.value=t.id;o.textContent=t.name;sel.appendChild(o);});
+  if(state.currentTripId)sel.value=state.currentTripId;
+  renderHero();
+}
+async function onTripChange(){
+  const val=$('trip-select').value;
+  state.currentTripId=val||null;
+  if(state.currentTripId){
+    try{localStorage.setItem('balance_last_trip',state.currentTripId);}catch(_){}
+    await loadTripData();
+  } else renderNoTrip();
+}
+function renderNoTrip(){
+  ['no-trip-left','no-trip-mid','no-trip-right'].forEach(show);
+  ['expense-form-wrap','expense-list-wrap','balance-wrap'].forEach(hide);
+  hide('invite-btn');
+  const invDD=document.getElementById('invite-dropdown-btn');if(invDD)invDD.style.display='none';
+  $('stat-total').textContent='$0.00';$('stat-per').textContent='$0.00';$('stat-count').textContent='0';
+  const sb=$('stat-balance');if(sb){sb.textContent='—';sb.style.color='';}
+  renderHero();
+}
+var _loadTripDataVersion = 0;
+async function loadTripData(){
+  if(!state.currentTripId){renderNoTrip();return;}
+  const trip=state.trips.find(t=>t.id===state.currentTripId);
+  if(!trip){
+    // Trip not in local list (deleted, archived, or trips not loaded yet).
+    // Reset and reload the trip list so the UI settles into a clean state.
+    state.currentTripId=null;
+    loadUserTrips().catch(function(){renderNoTrip();});
+    return;
+  }
+  // Track call version so concurrent calls don't stomp each other
+  var myVersion = ++_loadTripDataVersion;
+  const sym=SYMBOLS[trip.base_currency]||trip.base_currency;
+  $('trip-currency-badge').textContent=trip.base_currency;
+  $('currency-prefix') && ($('currency-prefix').textContent=sym);const cs=document.getElementById('currency-select');if(cs){cs.value=trip.base_currency;}
+  show('invite-btn');
+  const _idd=document.getElementById('invite-dropdown-btn');if(_idd)_idd.style.display='';
+  // Show skeleton while loading
+  showSkeletonLoader();
+  const {data:mems}=await sb.from('trip_members').select('*,profiles(*)').eq('trip_id',state.currentTripId);
+  // If a newer loadTripData call started, abandon this one
+  if(myVersion !== _loadTripDataVersion) return;
+  state.members=(mems||[]).map(m=>({...m,profile:m.profiles}));
+  const {data:exps}=await sb.from('expenses').select('*,expense_splits(*)').eq('trip_id',state.currentTripId).order('expense_date',{ascending:false});
+  if(myVersion !== _loadTripDataVersion) return;
+  state.expenses=exps||[];
+  renderAll();
+}
+
+function showSkeletonLoader(){
+  hide('no-trip-mid');show('expense-list-wrap');
+  const list=$('expense-list');
+  list.innerHTML='';
+  $('expense-count-badge').textContent='Loading...';
+  for(let i=0;i<4;i++){
+    list.innerHTML+='<div class="skel-card"><div class="skeleton skel-emoji"></div><div class="skel-lines"><div class="skeleton skel-line wide"></div><div class="skeleton skel-line narrow"></div></div><div class="skeleton skel-amount"></div></div>';
+  }
+}
+
+async function renderAll(){
+  renderExpenseForm();renderExpenseList();renderStats();
+  // Safety check: if we have expenses but ALL are missing splits, the Supabase
+  // join may have returned stale data (RLS timing, cache, etc.).  Re-fetch once.
+  if(state.expenses.length > 0){
+    var _missingSplits = state.expenses.every(function(e){ return !e.expense_splits || e.expense_splits.length === 0; });
+    if(_missingSplits && !renderAll._retried){
+      dbg('renderAll: all expenses missing splits — retrying loadTripData');
+      renderAll._retried = true;
+      try{ await loadTripData(); }catch(_){}
+      return; // loadTripData calls renderAll again
+    }
+    renderAll._retried = false;
+  }
+  await renderBalance();
+}
+function getCurrentCurrency(){const sel=document.getElementById("currency-select");return sel?sel.value:(state.trips.find(t=>t.id===state.currentTripId)||{base_currency:"USD"}).base_currency;}function onCurrencyChange(){updateShares();renderMemberChecks();}
+function fmtDate(d){if(!d)return'';const [y,m,day]=d.split('-');const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return months[parseInt(m,10)-1]+' '+parseInt(day,10)+', '+y;}
+// ── Trip hero (banner title + meta line) ──
+function _parseYMD(s){if(!s)return null;const p=String(s).slice(0,10).split('-');if(p.length<3)return null;return new Date(+p[0],+p[1]-1,+p[2]);}
+function fmtRange(s,e){
+  const M=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const a=_parseYMD(s),b=_parseYMD(e);
+  if(a&&b){return a.getMonth()===b.getMonth()&&a.getFullYear()===b.getFullYear()?M[a.getMonth()]+' '+a.getDate()+' – '+b.getDate():M[a.getMonth()]+' '+a.getDate()+' – '+M[b.getMonth()]+' '+b.getDate();}
+  if(a)return 'From '+M[a.getMonth()]+' '+a.getDate();
+  return '';
+}
+function tripDayLabel(s,e){
+  const a=_parseYMD(s),b=_parseYMD(e);if(!a||!b)return '';
+  const now=new Date();const t=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  const day=86400000,total=Math.round((b-a)/day)+1;
+  if(t<a){const n=Math.round((a-t)/day);return 'Starts in '+n+(n===1?' day':' days');}
+  if(t>b)return '';
+  return 'Day '+(Math.round((t-a)/day)+1)+' of '+total;
+}
+function renderHero(){
+  const nameEl=$('hero-trip-name'),metaEl=$('hero-trip-meta');if(!nameEl||!metaEl)return;
+  const t=(state.trips||[]).find(function(x){return x.id===state.currentTripId;});
+  if(!t){nameEl.textContent=(state.trips&&state.trips.length)?'Pick a trip':'Start a trip';metaEl.textContent=(state.trips&&state.trips.length)?'Tap the name to choose':'';return;}
+  nameEl.textContent=t.name;
+  const parts=[];
+  const r=fmtRange(t.start_date,t.end_date);if(r)parts.push(r);
+  const d=tripDayLabel(t.start_date,t.end_date);if(d)parts.push(d);
+  const mems=(state.members||[]).filter(function(m){return m.trip_id===t.id;});
+  if(mems.length)parts.push(mems.length+(mems.length===1?' person':' people'));
+  if(!parts.length&&t.description)parts.push(t.description);
+  metaEl.textContent=parts.join(' · ');
+}
+function renderStats(){
+  renderHero();
+  const cur=getCurrentCurrency();
+  const total=state.expenses.reduce((s,e)=>s+Number(e.amount),0);
+  const mc=state.members.length||1;
+  $("stat-total").textContent=fmt(total,cur);
+  $("stat-per").textContent=fmt(total/mc,cur);
+  $("stat-count").textContent=state.expenses.length;
+  // My balance: what I paid minus my fair share
+  if(state.user&&state.members.length){
+    let myPaid=0,myOwed=0;
+    state.expenses.forEach(function(e){
+      if(e.paid_by===state.user.id)myPaid+=Number(e.amount);
+      (e.expense_splits||[]).forEach(function(s){if(s.user_id===state.user.id)myOwed+=Number(s.amount_owed);});
+    });
+    const net=myPaid-myOwed;
+    const el=$("stat-balance");
+    if(el){
+      el.textContent=(net>=0?'+':'')+fmt(net,cur);
+      el.style.color=net>0.005?'var(--success)':net<-0.005?'var(--danger)':'var(--text2)';
+    }
+  }
+}
+function setSplit(mode){state.splitMode=mode;$("split-equal-btn").classList.toggle("active",mode==="equal");$("split-custom-btn").classList.toggle("active",mode==="custom");if(mode==="custom"){show("custom-members-wrap");renderMemberChecks();}else hide("custom-members-wrap");}
+function updateShares(){if(state.splitMode!=="custom")return;const amt=parseFloat($("exp-amount").value)||0;const checks=[...document.querySelectorAll("#member-checks input:checked")];const share=checks.length>0?amt/checks.length:0;const cur=getCurrentCurrency();checks.forEach(cb=>{const el=$("share-"+cb.value);if(el)el.textContent=fmt(share,cur);});document.querySelectorAll("#member-checks input:not(:checked)").forEach(cb=>{const el=$("share-"+cb.value);if(el)el.textContent=fmt(0,cur);});}
+function renderMemberChecks(){const wrap=$("member-checks");wrap.innerHTML="";const cur=getCurrentCurrency();const amt=parseFloat($("exp-amount").value)||0;const share=state.members.length>0?amt/state.members.length:0;state.members.forEach(function(m){const n=getName(m.profile);const row=document.createElement("label");row.className="mcheck-row";row.innerHTML="<input type=\"checkbox\" value=\""+m.user_id+"\" checked onchange=\"updateShares()\"><span class=\"mname\">"+n+"</span><span class=\"mshare\" id=\"share-"+m.user_id+"\">"+fmt(share,cur)+"</span>";wrap.appendChild(row);});}
+function renderExpenseForm(){hide("no-trip-left");show("expense-form-wrap");_selectedEmoji="🧾";const _eb=$("emoji-btn");if(_eb)_eb.textContent="🧾";$("exp-date").value=todayStr();const pb=$("exp-paidby");pb.innerHTML="";state.members.forEach(function(m){const o=document.createElement("option");o.value=m.user_id;const n=getName(m.profile);o.textContent=n+(m.user_id===state.user.id?" (you)":"");if(m.user_id===state.user.id)o.selected=true;pb.appendChild(o);});renderMemberChecks();}
+function renderExpenseList(){
+  hide("no-trip-mid");show("expense-list-wrap");
+  const cur=getCurrentCurrency();
+  const list=$("expense-list");list.innerHTML="";
+  $("expense-count-badge").textContent=state.expenses.length+" expense"+(state.expenses.length!==1?'s':'');
+  if(!state.expenses.length){
+    list.innerHTML="<div class=\"empty-state\"><div class=\"empty-icon\">💸</div><h3>No expenses yet</h3><p>Add your first expense using the form on the left.</p></div>";
+    return;
+  }
+  state.expenses.forEach(function(exp){
+    const payer=state.members.find(function(m){return m.user_id===exp.paid_by;});
+    const payerName=payer?getName(payer.profile):"Unknown";
+    const splits=exp.expense_splits||[];
+    const myShare=splits.find(function(s){return s.user_id===state.user.id;});
+    const perPerson=myShare?fmt(myShare.amount_owed,exp.currency||cur):"—";
+    const card=document.createElement("div");
+    card.className="expense-card";
+    card.dataset.expId=exp.id;
+    card.innerHTML=
+      "<div class=\"expense-card-main\">"+
+        "<div class=\"expense-emoji\">"+emojiFor(exp.description,exp.emoji)+"</div>"+
+        "<div class=\"expense-info\">"+
+          "<div class=\"expense-desc\">"+exp.description+"</div>"+
+          "<div class=\"expense-meta\">"+(payer&&payer.user_id===state.user.id?"You":payerName.split(" ")[0])+" paid &middot; "+fmtDate(exp.expense_date).replace(", "+new Date().getFullYear(),"")+"</div>"+
+        "</div>"+
+        "<div class=\"expense-right\">"+
+          "<div class=\"expense-amount\">"+fmt(exp.amount,exp.currency||cur)+"</div>"+
+          "<div class=\"expense-per\">Your share: "+perPerson+"</div>"+
+        "</div>"+
+      "</div>"+
+      "<div class=\"expense-card-actions\">"+
+        "<span class=\"expense-card-hint\">Hover to edit or remove</span>"+
+        "<div style=\"display:flex;gap:6px\">"+
+          "<button class=\"edit-btn\" onclick=\"openEditExpense('"+exp.id+"')\">&#9998; Edit</button>"+
+          "<button class=\"del-btn\" onclick=\"confirmDeleteExpense(this,'"+exp.id+"')\">&#215; Remove</button>"+
+        "</div>"+
+      "</div>";
+    card.addEventListener("click",function(ev){if(ev.target.closest("button"))return;card.classList.toggle("show-actions");});
+    list.appendChild(card);
+  });
+}
+
+
+// Historical exchange rates cache: {date: {currency: rate_vs_USD}}
+const _fxCache = {};
+
+async function getHistoricalRates(date) {
+  if(_fxCache[date]) return _fxCache[date];
+  try {
+    // frankfurter.app provides free historical rates
+    const url = 'https://api.frankfurter.app/' + date + '?from=USD';
+    const res = await fetch(url);
+    const data = await res.json();
+    if(data.rates) {
+      // Add USD itself
+      data.rates['USD'] = 1;
+      _fxCache[date] = data.rates;
+      return data.rates;
+    }
+  } catch(e) {}
+  return null;
+}
+
+async function prefetchRatesForExpenses(expenses) {
+  // Get unique dates for non-base-currency expenses
+  const dates = [...new Set(
+    expenses
+      .filter(e => e.currency && e.currency !== 'USD')
+      .map(e => e.expense_date)
+  )];
+  // Fetch all in parallel
+  await Promise.all(dates.map(d => getHistoricalRates(d)));
+}
+
+function convertViaUSD(amount, fromCur, toCur, usdRates) {
+  if(fromCur === toCur || !usdRates) return amount;
+  // usdRates has rates relative to USD (1 USD = X currency)
+  // So: 1 EUR = 1/usdRates['EUR'] USD
+  const fromToUSD = fromCur === 'USD' ? 1 : (1 / (usdRates[fromCur] || 1));
+  const usdToTo = toCur === 'USD' ? 1 : (usdRates[toCur] || 1);
+  return amount * fromToUSD * usdToTo;
+}
+
+var _balanceRenderId = 0;
+async function renderBalance(){
+hide("no-trip-right");show("balance-wrap");
+// Cancellation: if a newer renderBalance starts while we await, bail out
+var myRenderId = ++_balanceRenderId;
+// Snapshot data at the start so it stays consistent across the await
+var snapMembers = state.members.slice();
+var snapExpenses = state.expenses.slice();
+// Show loading state while fetching rates
+const list=$("balance-list");
+const sl=$("settle-list");
+list.innerHTML='<div style="padding:20px;text-align:center;color:var(--text3);font-size:13px"><span class="spinner" style="border-top-color:var(--text3);margin-right:8px;vertical-align:middle"></span>Calculating...</div>';
+sl.innerHTML='';
+const cur=getCurrentCurrency();
+const paid={};const owed={};
+snapMembers.forEach(function(m){paid[m.user_id]=0;owed[m.user_id]=0;});
+// Fetch exchange rates for multi-currency conversion
+const multiCurrency = snapExpenses.some(function(e){return e.currency && e.currency !== cur;});
+// Prefetch all historical rates in parallel
+await prefetchRatesForExpenses(snapExpenses);
+// If a newer render started while we were fetching rates, abandon this one
+if(myRenderId !== _balanceRenderId) return;
+snapExpenses.forEach(function(exp){
+  const expCur = exp.currency || cur;
+  // Use historical rate for the date the expense was incurred
+  const usdRates = _fxCache[exp.expense_date] || null;
+  const convertedAmt = convertViaUSD(Number(exp.amount), expCur, cur, usdRates);
+  if(paid[exp.paid_by]!==undefined) paid[exp.paid_by] += convertedAmt;
+  const splitRate = (expCur !== cur && usdRates) ? convertViaUSD(1, expCur, cur, usdRates) : 1;
+  (exp.expense_splits||[]).forEach(function(s){
+    if(owed[s.user_id]!==undefined) owed[s.user_id] += Number(s.amount_owed) * splitRate;
+  });
+});
+const total=snapExpenses.reduce(function(s,e){
+  const usdRates = _fxCache[e.expense_date] || null;
+  return s + convertViaUSD(Number(e.amount), e.currency||cur, cur, usdRates);
+},0);
+const fairShare=snapMembers.length>0?total/snapMembers.length:0;
+list.innerHTML="";
+if(multiCurrency){const note=document.createElement("div");note.style.cssText="font-size:11px;color:var(--text2);margin-bottom:8px;padding:6px 10px;background:var(--accent-dim);border-radius:8px;text-align:center;";note.textContent="💱 Amounts converted to "+cur+" at historical rates (date of expense)";list.appendChild(note);}
+const balances=[];
+snapMembers.forEach(function(m){
+const n=getName(m.profile);const p=paid[m.user_id]||0;const o=owed[m.user_id]||0;
+const net=p-o;balances.push({uid:m.user_id,name:n,paid:p,owed:o,net:net});
+const card=document.createElement("div");card.className="balance-card";
+const cls=net>0.005?"pos":net<-0.005?"neg":"zero";
+const netStr=(net>=0?"+":"")+fmt(net,cur);
+const barPct=total>0?Math.min(100,Math.abs(p/total)*100):0;
+const barColor=net>0.005?"var(--success)":net<-0.005?"var(--danger)":"var(--text3)";
+card.innerHTML="<div class=\"brow\"><div class=\"bavatar\" style=\"background:"+avatarColor(n)+"\">"+getInitials(n)+"</div><span class=\"bname\">"+n+"</span><span class=\"bnet "+cls+"\">"+netStr+"</span></div>"+"<div class=\"bbar-wrap\"><div class=\"bbar\" style=\"width:"+barPct+"%;background:"+barColor+"\"></div></div>"+"<div class=\"bsub\"><span>Paid: "+fmt(p,cur)+"</span><span>Share: "+fmt(o,cur)+"</span></div>";
+list.appendChild(card);});
+renderSettlements(balances,cur);
+checkSplitDrift();}
+function calcSettlements(balances){
+const cred=[],debt=[];
+balances.forEach(function(b){
+const n=Math.round(b.net*100)/100;
+if(n>0)cred.push({uid:b.uid,name:b.name,amount:n});
+else if(n<0)debt.push({uid:b.uid,name:b.name,amount:-n});
+});
+cred.sort(function(a,b){return b.amount-a.amount;});
+debt.sort(function(a,b){return b.amount-a.amount;});
+const txns=[];
+while(cred.length&&debt.length){
+const c=cred[0],d=debt[0];
+const amt=Math.min(c.amount,d.amount);
+txns.push({from:d.name,to:c.name,amount:amt});
+c.amount-=amt;d.amount-=amt;
+if(c.amount<0.005)cred.shift();
+if(d.amount<0.005)debt.shift();
+}
+return txns;}
+function renderSettlements(balances,cur){
+const txns=calcSettlements(balances);
+const sl=$("settle-list");sl.innerHTML="";
+if(!txns.length){sl.innerHTML="<div style=\"padding:16px;text-align:center;color:var(--text3);font-size:13px\">\u2705 All settled up!</div>";return;}
+txns.forEach(function(t){
+const row=document.createElement("div");row.className="settle-row";
+row.innerHTML="<div class=\"settle-row-top\"><span class=\"sfrom\">"+t.from+"</span><span class=\"sarrow\">owes</span><span class=\"sto\">"+t.to+"</span></div><div class=\"settle-row-bottom\"><span class=\"settle-label\">Amount to transfer</span><span class=\"samount\">"+fmt(t.amount,cur)+"</span></div>";
+sl.appendChild(row);});}
+
+function checkSplitDrift(){
+  // Flag only when split totals don't add up to the expense amount.
+  // Custom splits (fewer people than the full group) are valid as long as
+  // their totals equal the expense amount — do NOT flag them.
+  if(!state.expenses.length||!state.members.length)return;
+  let hasDrift=false;
+  state.expenses.forEach(function(exp){
+    const splits=exp.expense_splits||[];
+    if(splits.length===0)return; // no splits yet — skip
+    const storedTotal=splits.reduce(function(s,sp){return s+Number(sp.amount_owed);},0);
+    const expAmt=Number(exp.amount);
+    if(Math.abs(storedTotal-expAmt)>0.10){hasDrift=true;}
+  });
+  const banner=document.getElementById('splits-warning');
+  if(banner){banner.classList.toggle('visible',hasDrift);}
+}
+
+async function handleRecalcAllSplits(){
+  if(!state.currentTripId||!state.members.length)return;
+  const btn=document.querySelector('#balance-wrap .panel-header .splits-recalc-btn');
+  if(btn){btn.disabled=true;btn.textContent='Recalculating...';}
+  // Recalculate ALL expenses as equal splits across all current members.
+  // This is intentionally a full reset — it fixes stale splits when new members
+  // join. Custom per-expense splits can be restored via Edit Expense afterwards.
+  try{
+    let count=0;
+    for(const exp of state.expenses){
+      const shareAmt=Number(exp.amount)/state.members.length;
+      const splits=state.members.map(function(m){return {user_id:m.user_id,amount_owed:Math.round(shareAmt*100)/100};});
+      await sb.from('expense_splits').delete().eq('expense_id',exp.id);
+      const {error}=await sb.from('expense_splits').insert(
+        splits.map(function(s){return {expense_id:exp.id,user_id:s.user_id,amount_owed:s.amount_owed};})
+      );
+      if(error)throw error;
+      count++;
+    }
+    toast('Splits recalculated for '+count+' expense'+(count!==1?'s':'')+' across '+state.members.length+' members.','success');
+    await loadTripData();
+  }catch(e){
+    // Fallback: try via RPC if direct table access is blocked by RLS
+    try{
+      for(const exp of state.expenses){
+        const shareAmt=Number(exp.amount)/state.members.length;
+        const splits=state.members.map(function(m){return {user_id:m.user_id,amount_owed:Math.round(shareAmt*100)/100};});
+        await sb.rpc('insert_expense_splits',{p_expense_id:exp.id,p_splits:splits});
+      }
+      toast('Splits recalculated for '+state.expenses.length+' expenses across '+state.members.length+' members.','success');
+      await loadTripData();
+    }catch(e2){toast('Error recalculating: '+e2.message,'error');console.error('Recalc error:',e,e2);}
+  }
+  finally{if(btn){btn.disabled=false;btn.textContent='↻ Recalculate';}}
+}
+
+
+function buildEmojiGrid(){
+  const grid=$("emoji-grid");
+  if(!grid||grid.children.length>0) return;
+  EMOJIS.forEach(function(e){
+    const s=document.createElement("span");
+    s.textContent=e;
+    s.title=e;
+    s.onclick=function(ev){ev.stopPropagation();selectEmoji(e);};
+    grid.appendChild(s);
+  });
+}
+function selectEmoji(e){
+  _selectedEmoji=e;
+  const btn=$("emoji-btn");
+  if(btn) btn.textContent=e;
+  closeEmojiGrid();
+}
+function toggleEmojiGrid(ev){
+  ev.stopPropagation();
+  buildEmojiGrid();
+  const grid=$("emoji-grid");
+  if(grid) grid.classList.toggle("open");
+}
+function closeEmojiGrid(){
+  const grid=$("emoji-grid");
+  if(grid) grid.classList.remove("open");
+}
+document.addEventListener("click", closeEmojiGrid);
+async function handleAddExpense(){
+const desc=$("exp-desc").value.trim();
+const amt=parseFloat($("exp-amount").value);
+const date=$("exp-date").value;
+const paidBy=$("exp-paidby").value;
+if(!desc){toast("Please enter a description.","error");return;}
+if(!amt||amt<=0){toast("Please enter a valid amount.","error");return;}
+if(!date){toast("Please select a date.","error");return;}
+if(!paidBy){toast("Please select who paid.","error");return;}
+const btn=$("add-expense-btn");btn.disabled=true;btn.innerHTML="<span class=\"spinner\"></span> Adding...";
+const cur=getCurrentCurrency();
+try{
+const {data:expId,error:expErr}=await sb.rpc("create_expense_for_user",{p_trip_id:state.currentTripId,p_description:desc,p_amount:amt,p_currency:cur,p_paid_by:paidBy,p_expense_date:date,p_split_type:state.splitMode,p_created_by:state.user.id});
+if(expErr)throw expErr;
+let splitMembers=state.members;
+if(state.splitMode==="custom"){const checks=[...document.querySelectorAll("#member-checks input:checked")];splitMembers=state.members.filter(function(m){return checks.some(function(c){return c.value===m.user_id;});});}
+if(splitMembers.length===0)splitMembers=state.members;
+const shareAmt=amt/splitMembers.length;
+const splits=splitMembers.map(function(m){return {user_id:m.user_id,amount_owed:Math.round(shareAmt*100)/100};});
+const {error:spErr}=await sb.rpc("insert_expense_splits",{p_expense_id:expId,p_splits:splits});
+if(spErr)throw spErr;
+const _saveCur = getCurrentCurrency();
+await sb.from('expenses').update({emoji:_selectedEmoji, currency:_saveCur}).eq('id',expId);
+toast("Expense added!","success");
+_selectedEmoji="🧾";const _eb=$("emoji-btn");if(_eb)_eb.textContent="🧾";$("exp-desc").value="";$("exp-amount").value="";$("exp-date").value=todayStr();
+await loadTripData();
+if(window.matchMedia&&window.matchMedia('(max-width:760px)').matches)switchMobTab('expenses');
+}catch(e){toast("Error: "+e.message,"error");}
+btn.disabled=false;btn.innerHTML="&#43; Add Expense";}
+
+let _editingExpenseId = null;
+let _editEmoji = '🧾';
+let _editSplitMode = 'equal';
+
+function setEditSplit(mode){
+  _editSplitMode = mode;
+  const eqBtn = document.getElementById('edit-split-equal-btn');
+  const cuBtn = document.getElementById('edit-split-custom-btn');
+  if(eqBtn) eqBtn.classList.toggle('active', mode === 'equal');
+  if(cuBtn) cuBtn.classList.toggle('active', mode === 'custom');
+  const wrap = document.getElementById('edit-custom-members-wrap');
+  if(mode === 'custom'){
+    if(wrap) wrap.style.display = '';
+    renderEditMemberChecks();
+  } else {
+    if(wrap) wrap.style.display = 'none';
+  }
+}
+
+function renderEditMemberChecks(selectedIds){
+  const wrap = document.getElementById('edit-member-checks');
+  if(!wrap) return;
+  wrap.innerHTML = '';
+  const amt = parseFloat(document.getElementById('edit-amount').value) || 0;
+  const cur = (document.getElementById('edit-currency') || {value:'USD'}).value;
+  const checkedIds = selectedIds || state.members.map(function(m){ return m.user_id; });
+  const share = checkedIds.length > 0 ? amt / checkedIds.length : 0;
+  state.members.forEach(function(m){
+    const n = getName(m.profile);
+    const isChecked = checkedIds.indexOf(m.user_id) > -1;
+    const row = document.createElement('label');
+    row.className = 'mcheck-row';
+    row.innerHTML = '<input type="checkbox" value="' + m.user_id + '"' + (isChecked ? ' checked' : '') + ' onchange="updateEditShares()"><span class="mname">' + n + '</span><span class="mshare" id="edit-share-' + m.user_id + '">' + fmt(isChecked ? share : 0, cur) + '</span>';
+    wrap.appendChild(row);
+  });
+}
+
+function updateEditShares(){
+  const amt = parseFloat(document.getElementById('edit-amount').value) || 0;
+  const cur = (document.getElementById('edit-currency') || {value:'USD'}).value;
+  const checks = [...document.querySelectorAll('#edit-member-checks input:checked')];
+  const share = checks.length > 0 ? amt / checks.length : 0;
+  checks.forEach(function(cb){
+    const el = document.getElementById('edit-share-' + cb.value);
+    if(el) el.textContent = fmt(share, cur);
+  });
+  document.querySelectorAll('#edit-member-checks input:not(:checked)').forEach(function(cb){
+    const el = document.getElementById('edit-share-' + cb.value);
+    if(el) el.textContent = fmt(0, cur);
+  });
+}
+
+async function openEditExpense(id){
+  const exp = state.expenses.find(e => e.id === id);
+  if(!exp) return;
+  _editingExpenseId = id;
+  _editEmoji = exp.emoji || '🧾';
+  // Fill form fields
+  const eb = document.getElementById('edit-emoji-btn');
+  if(eb) eb.textContent = _editEmoji;
+  document.getElementById('edit-desc').value = exp.description;
+  document.getElementById('edit-amount').value = exp.amount;
+  const editCurEl = document.getElementById('edit-currency');
+  if(editCurEl) editCurEl.value = exp.currency || 'USD';
+  document.getElementById('edit-date').value = exp.expense_date;
+  // Fill paid by
+  const pb = document.getElementById('edit-paidby');
+  pb.innerHTML = '';
+  state.members.forEach(function(m){
+    const o = document.createElement('option');
+    o.value = m.user_id;
+    o.textContent = getName(m.profile) + (m.user_id === state.user.id ? ' (you)' : '');
+    if(m.user_id === exp.paid_by) o.selected = true;
+    pb.appendChild(o);
+  });
+  // Load existing splits to determine split mode
+  _editSplitMode = 'equal';
+  let splitIds = state.members.map(function(m){ return m.user_id; });
+  try{
+    const {data: splits} = await sb.from('expense_splits').select('user_id').eq('expense_id', id);
+    if(splits && splits.length > 0 && splits.length < state.members.length){
+      _editSplitMode = 'custom';
+      splitIds = splits.map(function(s){ return s.user_id; });
+    }
+  }catch(e){ /* default to equal */ }
+  setEditSplit(_editSplitMode);
+  if(_editSplitMode === 'custom') renderEditMemberChecks(splitIds);
+  document.getElementById('edit-expense-modal').classList.add('open');
+}
+
+function closeEditModal(){
+  document.getElementById('edit-expense-modal').classList.remove('open');
+  _editingExpenseId = null;
+}
+
+function toggleEditEmojiGrid(ev){
+  ev.stopPropagation();
+  const grid = document.getElementById('edit-emoji-grid');
+  if(!grid) return;
+  if(grid.children.length === 0){
+    EMOJIS.forEach(function(e){
+      const s = document.createElement('span');
+      s.textContent = e;
+      s.onclick = function(ev2){ ev2.stopPropagation(); _editEmoji = e; const eb = document.getElementById('edit-emoji-btn'); if(eb) eb.textContent = e; grid.classList.remove('open'); };
+      grid.appendChild(s);
+    });
+  }
+  grid.classList.toggle('open');
+}
+
+async function handleSaveExpense(){
+  if(!_editingExpenseId) return;
+  const desc = document.getElementById('edit-desc').value.trim();
+  const amt = parseFloat(document.getElementById('edit-amount').value);
+  const date = document.getElementById('edit-date').value;
+  const paidBy = document.getElementById('edit-paidby').value;
+  const cur = (document.getElementById('edit-currency')||{value:'USD'}).value;
+  if(!desc){ toast('Please enter a description.','error'); return; }
+  if(!amt || amt <= 0){ toast('Please enter a valid amount.','error'); return; }
+  if(!date){ toast('Please select a date.','error'); return; }
+  // Build splits based on split mode
+  let splits;
+  if(_editSplitMode === 'custom'){
+    const checked = [...document.querySelectorAll('#edit-member-checks input:checked')];
+    if(checked.length === 0){ toast('Please select at least one person.','error'); return; }
+    const share = Math.round((amt / checked.length) * 100) / 100;
+    splits = checked.map(function(cb){ return {user_id: cb.value, amount_owed: share}; });
+  } else {
+    const shareAmt = Math.round((amt / state.members.length) * 100) / 100;
+    splits = state.members.map(function(m){ return {user_id: m.user_id, amount_owed: shareAmt}; });
+  }
+  const saveBtn = document.querySelector('#edit-expense-modal .btn-primary');
+  if(saveBtn){ saveBtn.disabled = true; saveBtn.textContent = 'Saving...'; }
+  try{
+    const {error} = await sb.from('expenses').update({
+      description: desc,
+      amount: amt,
+      expense_date: date,
+      paid_by: paidBy,
+      emoji: _editEmoji,
+      currency: cur
+    }).eq('id', _editingExpenseId);
+    if(error) throw error;
+    await sb.rpc('insert_expense_splits', {p_expense_id: _editingExpenseId, p_splits: splits});
+    toast('Expense updated!', 'success');
+    closeEditModal();
+    await loadTripData(state.currentTripId);
+  }catch(e){
+    toast('Error: ' + e.message, 'error');
+  }finally{
+    if(saveBtn){ saveBtn.disabled = false; saveBtn.textContent = 'Save Changes'; }
+  }
+}
+
+// Close edit modal on overlay click
+document.addEventListener('click', function(e){
+  const modal = document.getElementById('edit-expense-modal');
+  if(modal && e.target === modal) closeEditModal();
+});
+function confirmDeleteExpense(btn,id){
+  const card=btn.closest('.expense-card');
+  if(!card)return;
+  // Already confirming — execute delete
+  if(card.classList.contains('confirming')){
+    handleDeleteExpense(id);
+    return;
+  }
+  card.classList.add('confirming');
+  // Hide normal action row, show confirm row
+  const actionsRow=card.querySelector('.expense-card-actions');
+  if(actionsRow)actionsRow.style.display='none';
+  const confirmRow=document.createElement('div');
+  confirmRow.className='confirm-del-row';
+  confirmRow.innerHTML=
+    '<span class="confirm-del-msg">⚠ Remove this expense?</span>'+
+    '<div style="display:flex;gap:6px">'+
+      '<button class="confirm-del-no" onclick="cancelDeleteExpense(this)">Cancel</button>'+
+      '<button class="confirm-del-yes" onclick="handleDeleteExpense(\''+id+'\')">Yes, Remove</button>'+
+    '</div>';
+  card.appendChild(confirmRow);
+}
+function cancelDeleteExpense(btn){
+  const card=btn.closest('.expense-card');
+  if(!card)return;
+  card.classList.remove('confirming');
+  const confirmRow=card.querySelector('.confirm-del-row');
+  if(confirmRow)confirmRow.remove();
+  const actionsRow=card.querySelector('.expense-card-actions');
+  if(actionsRow)actionsRow.style.display='';
+}
+async function handleDeleteExpense(id){
+  const {error}=await sb.rpc("delete_expense_for_user",{p_expense_id:id});
+  if(error){toast("Error: "+error.message,"error");return;}
+  toast("Expense removed.","info");
+  await loadTripData();
+}
+async function handleCreateTrip(){
+const name=$("nt-name").value.trim();
+if(!name){toast("Trip name required.","error");return;}
+const btn=$("create-trip-btn");btn.disabled=true;btn.innerHTML="<span class=\"spinner\"></span> Creating...";
+try{
+const {data:tripId,error}=await sb.rpc("create_trip_for_user",{p_name:name,p_description:$("nt-desc").value.trim()||null,p_start_date:$("nt-start").value||null,p_end_date:$("nt-end").value||null,p_base_currency:$("nt-currency").value,p_created_by:state.user.id});
+if(error)throw error;
+closeModal("new-trip-modal");
+$("nt-name").value="";$("nt-desc").value="";
+toast("Trip created!","success");
+state.currentTripId=tripId;
+await loadUserTrips();
+}catch(e){toast("Error: "+e.message,"error");}
+btn.disabled=false;btn.innerHTML="Create Trip";}
+async function handleJoinTrip(){
+const code=$("join-code").value.trim().toUpperCase();
+if(code.length<4){toast("Please enter a valid invite code.","error");return;}
+const btn=$("join-btn");btn.disabled=true;btn.innerHTML="<span class=\"spinner\"></span> Joining...";
+try{
+const {data:inv,error}=await sb.from("trip_invite_codes").select("*").eq("code",code).eq("is_active",true).single();
+if(error||!inv)throw new Error("Invalid or expired invite code.");
+if(inv.expires_at&&new Date(inv.expires_at)<new Date())throw new Error("This invite code has expired.");
+const already=state.trips.find(function(t){return t.id===inv.trip_id;});
+if(already){toast("You are already in this trip.","info");closeModal("join-modal");return;}
+const {error:memErr}=await sb.from("trip_members").insert({trip_id:inv.trip_id,user_id:state.user.id,role:"member"});
+if(memErr)throw memErr;
+closeModal("join-modal");$("join-code").value="";
+toast("Joined trip! Updating splits for all members…","success");
+state.currentTripId=inv.trip_id;
+await loadUserTrips();
+// Auto-recalculate all equal splits now that member count changed
+await handleRecalcAllSplits();
+}catch(e){toast("Error: "+e.message,"error");}
+btn.disabled=false;btn.innerHTML="Join Trip";}
+
+async function openInviteModal(){
+if(!state.currentTripId)return;
+const {data:codes,error:readErr}=await sb.from("trip_invite_codes").select("*").eq("trip_id",state.currentTripId).eq("is_active",true).order("created_at",{ascending:false}).limit(1);
+if(readErr){toast("Could not load invite code. Check your Supabase RLS policies (see INVITE_CODE_FIX.sql).","error",6000);return;}
+let code;
+if(codes&&codes.length){
+const c=codes[0];
+if(!c.expires_at||new Date(c.expires_at)>new Date())code=c.code;
+}
+if(!code){
+const arr=new Uint8Array(4);crypto.getRandomValues(arr);
+code=Array.from(arr).map(function(b){return b.toString(16).padStart(2,"0");}).join("").toUpperCase().slice(0,8);
+const expires=new Date(Date.now()+30*24*60*60*1000).toISOString();
+const {error:insErr}=await sb.from("trip_invite_codes").insert({trip_id:state.currentTripId,code:code,is_active:true,expires_at:expires});
+if(insErr){toast("Could not save invite code. Check your Supabase RLS policies (see INVITE_CODE_FIX.sql).","error",6000);return;}
+}
+$("invite-code-display").textContent=code;
+openModal("invite-modal");}
+function copyInviteCode(){
+const code=$("invite-code-display").textContent;
+navigator.clipboard.writeText(code).then(function(){toast("Code copied!","success");}).catch(function(){toast("Code: "+code,"info");});}
+var _realtimeDebounce=null;
+function _debouncedLoadTripData(){
+  if(_realtimeDebounce) clearTimeout(_realtimeDebounce);
+  _realtimeDebounce=setTimeout(function(){ _realtimeDebounce=null; if(state.currentTripId) loadTripData(); }, 500);
+}
+function setupRealtime(){
+if(state.realtimeSub){sb.removeChannel(state.realtimeSub);state.realtimeSub=null;}
+state.realtimeSub=sb.channel("expenses-realtime")
+.on("postgres_changes",{event:"*",schema:"public",table:"expenses"},function(payload){
+if(state.currentTripId&&payload.new&&payload.new.trip_id===state.currentTripId||payload.old&&payload.old.trip_id===state.currentTripId){
+_debouncedLoadTripData();
+}})
+.on("postgres_changes",{event:"*",schema:"public",table:"expense_splits"},function(){
+_debouncedLoadTripData();
+})
+.subscribe();
+}
+function toggleProfileMenu(e){
+  e.stopPropagation();
+  const dd=document.getElementById('profile-dropdown');
+  const av=document.getElementById('user-avatar');
+  if(!dd)return;
+  const isOpen=dd.classList.contains('open');
+  dd.classList.toggle('open',!isOpen);
+  if(av)av.classList.toggle('active',!isOpen);
+  // Update header with user name
+  if(!isOpen&&state.profile){
+    const nameEl=document.getElementById('profile-dropdown-name');
+    if(nameEl)nameEl.textContent=getName(state.profile);
+  }
+}
+function closeProfileMenu(){
+  const dd=document.getElementById('profile-dropdown');
+  const av=document.getElementById('user-avatar');
+  if(dd)dd.classList.remove('open');
+  if(av)av.classList.remove('active');
+}
+document.addEventListener('click',function(e){
+  const wrap=document.querySelector('.profile-menu-wrap');
+  if(wrap&&!wrap.contains(e.target))closeProfileMenu();
+});
+
+document.addEventListener("DOMContentLoaded",function(){
+$("exp-date").value=todayStr();
+document.querySelectorAll(".modal-overlay").forEach(function(o){
+o.addEventListener("click",function(e){if(e.target===o)o.classList.remove("open");});
+});
+});
+</script>
+
+<div class="modal-overlay" id="edit-expense-modal">
+  <div class="modal-box">
+    <div class="modal-title">✏️ Edit Expense</div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+      <div class="emoji-picker-wrap">
+        <button class="emoji-picker-btn" id="edit-emoji-btn" onclick="toggleEditEmojiGrid(event)" type="button">🧾</button>
+        <div class="emoji-grid" id="edit-emoji-grid"></div>
+      </div>
+      <input type="text" class="form-input" id="edit-desc" placeholder="Description" style="flex:1">
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:10px"><select class="currency-select" id="edit-currency" style="border-radius:8px;border:1px solid var(--border2);height:44px;"><option value="USD">$ USD</option><option value="EUR">€ EUR</option><option value="GBP">£ GBP</option><option value="AUD">A$ AUD</option><option value="CAD">C$ CAD</option><option value="JPY">¥ JPY</option><option value="CHF">Fr CHF</option><option value="MXN">MX$ MXN</option><option value="THB">฿ THB</option><option value="ZAR">R ZAR</option><option value="INR">₹ INR</option><option value="BRL">R$ BRL</option></select><input type="number" class="form-input" id="edit-amount" placeholder="Amount" step="0.01" min="0" style="flex:1" oninput="if(_editSplitMode==='custom')updateEditShares()"></div>
+    <input type="date" class="form-input" id="edit-date" style="margin-bottom:10px">
+    <select class="form-input" id="edit-paidby" style="margin-bottom:10px"></select>
+    <div style="margin-bottom:6px">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:6px;font-weight:500">Split</div>
+      <div class="split-toggle">
+        <button class="split-btn" id="edit-split-equal-btn" onclick="setEditSplit('equal')" type="button">⚙ Everyone Equally</button>
+        <button class="split-btn" id="edit-split-custom-btn" onclick="setEditSplit('custom')" type="button">✎ Custom</button>
+      </div>
+    </div>
+    <div id="edit-custom-members-wrap" style="display:none;margin-bottom:6px">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:6px;font-weight:500">Split between</div>
+      <div id="edit-member-checks"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="handleSaveExpense()">Save Changes</button>
+      <button class="btn" onclick="closeEditModal()" style="background:var(--bg2)">Cancel</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>
