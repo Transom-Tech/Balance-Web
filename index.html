@@ -101,11 +101,30 @@ input,select,textarea{font-family:inherit}
 .profile-dropdown-danger{color:var(--danger) !important}
 .profile-dropdown-danger:hover{background:#fdecee !important}
 
-/* ── Stats Card (overlaps the hero) ────────────────────── */
-.stats-bar{position:relative;z-index:21;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));margin:-40px 14px 0;background:var(--bg2);border-radius:24px;box-shadow:var(--shadow);padding:14px 6px}
-.stat-item{padding:2px 6px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border-right:1px solid var(--border)}
-.stat-item:last-child{border-right:none}
-.stat-value{font-size:18px;font-weight:800;letter-spacing:-.4px;line-height:1.15;white-space:nowrap}
+/* ── Bubble Card (overlaps the hero) ───────────────────── */
+.bubble-card{position:relative;z-index:21;margin:-40px 14px 0;background:#1e2b52;border:1px solid rgba(255,255,255,.08);border-radius:26px;box-shadow:0 14px 34px rgba(23,33,61,.30);padding:16px 8px 14px;color:#fff}
+.bubble-row{display:flex;gap:4px;overflow-x:auto;scroll-snap-type:x proximity;padding:2px 4px 2px;scrollbar-width:none}
+.bubble-row::-webkit-scrollbar{display:none}
+.bubble{all:unset;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;width:74px;flex-shrink:0;scroll-snap-align:center;border-radius:14px}
+.bubble:first-child{margin-left:auto}.bubble:last-child{margin-right:auto}
+.bubble:focus-visible{outline:2px solid var(--pink);outline-offset:2px}
+.bubble-svg{width:68px;height:68px;overflow:visible;display:block;transform-origin:50% 50%}
+.b-glass{fill:#2c3a6a}
+.b-back{fill:var(--pink);opacity:.45}
+.b-front{fill:var(--pink)}
+.b-tick{fill:none;stroke:rgba(255,255,255,.65);stroke-width:1.6;stroke-linecap:round}
+.b-rim{fill:none;stroke:rgba(255,255,255,.35);stroke-width:1.5}
+.b-shine{fill:none;stroke:rgba(255,255,255,.45);stroke-width:2.5;stroke-linecap:round}
+.b-init{font-family:var(--font);font-size:20px;font-weight:800;fill:#fff;text-anchor:middle;paint-order:stroke;stroke:rgba(16,26,48,.35);stroke-width:3}
+.b-name{font-size:13px;font-weight:600;color:#fff;max-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bubble-line{text-align:center;font-size:13px;color:rgba(255,255,255,.72);margin:8px 12px 0;line-height:1.35}
+.drop-layer{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+.drop-layer circle{fill:var(--pink)}
+
+/* ── Stats (now inside the Balance panel) ──────────────── */
+.stats-bar{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:0 12px 8px}
+.stat-item{padding:12px 14px;display:flex;flex-direction:column;gap:2px;background:var(--bg3);border-radius:16px}
+.stat-value{font-size:19px;font-weight:800;letter-spacing:-.4px;line-height:1.15;white-space:nowrap}
 .stat-label{font-size:12px;font-weight:600;color:var(--text2)}
 
 /* ── Layout ────────────────────────────────────────────── */
@@ -277,7 +296,7 @@ input,select,textarea{font-family:inherit}
   .trip-hero{padding:16px 28px 70px}
   .hero-body{margin-top:30px}
   .trip-switch h1{font-size:46px}
-  .stats-bar{max-width:760px;margin:-44px auto 0;width:calc(100% - 32px)}
+  .bubble-card{max-width:760px;margin:-44px auto 0;width:calc(100% - 32px)}
   .panel{display:block !important}
   #app-screen{padding-bottom:0}
 }
@@ -286,8 +305,6 @@ input,select,textarea{font-family:inherit}
   .main-content{display:block;padding:14px 14px 24px}
   .panel{display:none}
   .panel.mob-active{display:block}
-  .stat-value{font-size:16px}
-  .stat-label{font-size:11px}
   .trip-switch h1{font-size:34px}
 
   .mob-tabs{display:flex;align-items:center;position:fixed;left:14px;right:14px;bottom:calc(14px + env(safe-area-inset-bottom, 0px));height:var(--mob-tab-h);background:var(--navy);border-radius:32px;z-index:200;padding:0 8px;box-shadow:0 12px 30px rgba(23,33,61,.35)}
@@ -308,7 +325,7 @@ input,select,textarea{font-family:inherit}
 
 @media(max-width:380px){
   .auth-card{padding:26px 18px}
-  .stat-value{font-size:14px}
+  .stat-value{font-size:17px}
   .trip-switch h1{font-size:30px}
 }
 </style>
@@ -365,12 +382,11 @@ input,select,textarea{font-family:inherit}
 <p class="hero-meta" id="hero-trip-meta"></p>
 </div>
 </header>
-<div class="stats-bar">
-<div class="stat-item"><div class="stat-value" id="stat-total">$0.00</div><div class="stat-label">Total Spent</div></div>
-<div class="stat-item"><div class="stat-value" id="stat-per">$0.00</div><div class="stat-label">Per Person</div></div>
-<div class="stat-item"><div class="stat-value" id="stat-balance">—</div><div class="stat-label">My Balance</div></div>
-<div class="stat-item"><div class="stat-value" id="stat-count">0</div><div class="stat-label">Expenses</div></div>
-</div>
+<section class="bubble-card" id="bubble-card" aria-label="How evenly everyone has chipped in" style="display:none">
+<div class="bubble-row" id="bubble-row"></div>
+<svg class="drop-layer" id="drop-layer" aria-hidden="true"></svg>
+<p class="bubble-line" id="bubble-line">Bubbles fill as people pay. The tick marks even.</p>
+</section>
 <div class="main-content">
 <div class="panel" id="left-panel">
 <div id="no-trip-left" class="no-trip"><div class="big-icon">✈️</div><h3>Ready to split?</h3><p>Create a new trip or join one with an invite code.</p><div class="no-trip-actions"><button class="no-trip-btn" onclick="openModal('new-trip-modal')">+ New Trip</button><button class="no-trip-btn" onclick="openModal('join-modal')">🔗 Join Trip</button></div><div id="wrong-account-hint" style="display:none;margin-top:24px;padding:14px 16px;background:rgba(91,141,238,0.08);border:1px solid rgba(91,141,238,0.2);border-radius:10px;text-align:center"><p style="font-size:13px;color:var(--text2);margin-bottom:10px">Having trouble seeing your trips?</p><button onclick="handleLogout()" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:14px;font-weight:600;cursor:pointer;width:100%">Tap here to sign in again</button></div></div>
@@ -414,6 +430,12 @@ input,select,textarea{font-family:inherit}
 <div id="no-trip-right" class="no-trip"><div class="big-icon">⚖️</div><h3>Balances</h3><p>Select a trip to see who paid what and who owes who.</p></div>
 <div id="balance-wrap" style="display:none">
 <div class="panel-header"><span class="panel-title">Balances</span><button class="splits-recalc-btn" onclick="handleRecalcAllSplits()" title="Recalculate all equal splits based on current members">↻ Recalculate</button></div>
+<div class="stats-bar">
+<div class="stat-item"><div class="stat-value" id="stat-total">$0.00</div><div class="stat-label">Total Spent</div></div>
+<div class="stat-item"><div class="stat-value" id="stat-per">$0.00</div><div class="stat-label">Per Person</div></div>
+<div class="stat-item"><div class="stat-value" id="stat-balance">—</div><div class="stat-label">My Balance</div></div>
+<div class="stat-item"><div class="stat-value" id="stat-count">0</div><div class="stat-label">Expenses</div></div>
+</div>
 <div class="splits-warning" id="splits-warning"><span class="splits-warning-text">⚠️ Split totals may be off — a member likely joined after some expenses were added.</span><button class="splits-recalc-btn" onclick="handleRecalcAllSplits()">Fix Now</button></div>
 <div id="balance-list"></div>
 <div class="sub-header">Settlements</div>
@@ -904,6 +926,7 @@ function renderNoTrip(){
   const invDD=document.getElementById('invite-dropdown-btn');if(invDD)invDD.style.display='none';
   $('stat-total').textContent='$0.00';$('stat-per').textContent='$0.00';$('stat-count').textContent='0';
   const sb=$('stat-balance');if(sb){sb.textContent='—';sb.style.color='';}
+  showBubbleCard(false);BUB.key=null;
   renderHero();
 }
 var _loadTripDataVersion = 0;
@@ -994,6 +1017,98 @@ function renderHero(){
   if(!parts.length&&t.description)parts.push(t.description);
   metaEl.textContent=parts.join(' · ');
 }
+// ── Liquid bubbles ─────────────────────────────────────────
+// Each person's bubble = what they've paid vs. their own fair share (sum of their splits).
+// Even = 75% full (tick mark). Above even eases toward the top without overflowing.
+// When someone pays, droplets flow from everyone else's bubble into theirs.
+var BUB={key:null,els:{},prev:null,raf:0,drops:[],reduced:false};
+try{BUB.reduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches;}catch(_){}
+function _esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function bubbleLevel(r){var E=0.75;if(!isFinite(r))return 0.96;if(r<=1)return E*Math.max(0,r);return E+(1-E)*0.92*(1-Math.exp(-(r-1)*2.2));}
+function _wave(level,amp,phase,k){var y0=76-68*level,d='M0 '+(y0+amp*Math.sin(phase)).toFixed(1);for(var x=4;x<=84;x+=4)d+=' L'+x+' '+(y0+amp*Math.sin(x*k+phase)).toFixed(1);return d+' L84 90 L0 90 Z';}
+function showBubbleCard(on){var c=$('bubble-card');if(c)c.style.display=on?'':'none';}
+function renderBubbles(members,paid,owed){
+  var row=$('bubble-row');if(!row)return;
+  showBubbleCard(true);
+  var key=state.currentTripId+'|'+members.map(function(m){return m.user_id;}).join(',');
+  if(BUB.key!==key){
+    row.innerHTML='';BUB.els={};BUB.prev=null;BUB.key=key;
+    var tickY=(76-68*0.75),tickX=(42-Math.sqrt(34*34-Math.pow(tickY-42,2))).toFixed(1);
+    members.forEach(function(m,i){
+      var n=getName(m.profile),first=(m.user_id===state.user.id)?'You':n.split(' ')[0];
+      var b=document.createElement('button');b.type='button';b.className='bubble';
+      b.onclick=function(){switchMobTab('balance');};
+      b.innerHTML='<svg viewBox="0 0 84 84" class="bubble-svg" aria-hidden="true"><defs><clipPath id="bclip-'+i+'"><circle cx="42" cy="42" r="34"/></clipPath></defs>'+
+        '<circle cx="42" cy="42" r="34" class="b-glass"/><g clip-path="url(#bclip-'+i+')"><path class="b-back"/><path class="b-front"/></g>'+
+        '<path class="b-tick" d="M'+tickX+' '+tickY+' L'+(+tickX+5).toFixed(1)+' '+tickY+'"/><circle cx="42" cy="42" r="34" class="b-rim"/>'+
+        '<path class="b-shine" d="M24 28 Q30 19 40 17"/><text x="42" y="49" class="b-init">'+_esc(getInitials(n).toUpperCase())+'</text></svg>'+
+        '<span class="b-name">'+_esc(first)+'</span>';
+      row.appendChild(b);
+      BUB.els[m.user_id]={el:b,svg:b.querySelector('svg'),back:b.querySelector('.b-back'),front:b.querySelector('.b-front'),name:first,idx:i,level:0,target:0,hold:0,sloshAt:-1e9,sloshK:0};
+    });
+  }
+  var now=performance.now(),prev=BUB.prev,payers=[],ratios=[],any=false;
+  members.forEach(function(m){
+    var e=BUB.els[m.user_id];if(!e)return;
+    var p=paid[m.user_id]||0,o=owed[m.user_id]||0;
+    if(p>0.005||o>0.005)any=true;
+    var r=o>0.005?p/o:(p>0.005?Infinity:1);ratios.push(r);
+    e.target=bubbleLevel(r);
+    e.el.setAttribute('aria-label',e.name+(r>=1.1?': above even':(r>=0.9?': about even':': below even')));
+    if(prev&&p>(prev[m.user_id]||0)+0.005)payers.push(m.user_id);
+  });
+  BUB.prev=Object.assign({},paid);
+  if(payers.length&&!BUB.reduced){
+    Object.keys(BUB.els).forEach(function(id){var e=BUB.els[id];e.hold=now+450;e.sloshAt=now;e.sloshK=0.6;});
+    payers.forEach(function(pid){
+      var pe=BUB.els[pid];pe.sloshAt=now+600;pe.sloshK=1;
+      Object.keys(BUB.els).forEach(function(id,j){if(id===pid)return;for(var k=0;k<3;k++)BUB.drops.push({from:id,to:pid,born:now+k*90+j*30,dur:620,r:3.6-k*0.6});});
+    });
+  }
+  var line=$('bubble-line');
+  if(line){
+    var fin=ratios.filter(isFinite),balanced=any&&fin.length===ratios.length&&Math.max.apply(null,fin)-Math.min.apply(null,fin)<0.12;
+    line.textContent=!any?'Bubbles fill as people pay. The tick marks even.':(balanced?'Everyone is level. The trip is even.':'Paying fills your bubble. The tick marks even.');
+  }
+  if(!BUB.raf)BUB.raf=requestAnimationFrame(_bubbleTick);
+}
+function _bubbleTick(now){
+  BUB.raf=0;
+  var card=$('bubble-card');if(!card||card.style.display==='none')return;
+  var ids=Object.keys(BUB.els),busy=false;
+  ids.forEach(function(id){
+    var e=BUB.els[id];
+    if(now>=e.hold){var d=e.target-e.level;e.level+=d*0.06;if(Math.abs(d)>0.002)busy=true;}
+    var age=now-e.sloshAt,s=age<0?0:Math.max(0,1-age/2600);if(s>0)busy=true;
+    var amp=BUB.reduced?1:1.8+s*s*9*(0.45+0.55*e.sloshK);
+    var ph=now/480+e.idx*1.3+s*Math.sin(age/120)*1.5;
+    var lv=Math.max(0,Math.min(1,e.level));
+    e.back.setAttribute('d',_wave(lv,amp*0.8,-ph*0.85+1.4,0.11));
+    e.front.setAttribute('d',_wave(lv,amp,ph,0.13));
+    var bounce=(e.sloshK===1&&age>0&&age<500)?1+Math.sin(age/500*Math.PI)*0.07:1;
+    e.svg.style.transform=bounce===1?'':'scale('+bounce.toFixed(3)+')';
+  });
+  // droplets
+  var layer=$('drop-layer');
+  if(layer){
+    var cr=card.getBoundingClientRect(),html='';
+    BUB.drops=BUB.drops.filter(function(dp){return now-dp.born<dp.dur+40;});
+    BUB.drops.forEach(function(dp){
+      var a=(now-dp.born)/dp.dur;if(a<0||a>1)return;busy=true;
+      var f=BUB.els[dp.from],t=BUB.els[dp.to];if(!f||!t)return;
+      var fr=f.svg.getBoundingClientRect(),tr=t.svg.getBoundingClientRect();
+      var fx=fr.left+fr.width/2-cr.left,fy=fr.top+fr.height/2-cr.top,tx=tr.left+tr.width/2-cr.left,ty=tr.top+tr.height/2-cr.top;
+      var x=fx+(tx-fx)*a,y=fy+(ty-fy)*a-4-Math.sin(a*Math.PI)*46;
+      var op=a<0.1?a*10:(a>0.85?(1-a)/0.15:1);
+      html+='<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="'+dp.r+'" opacity="'+op.toFixed(2)+'"/>';
+    });
+    layer.innerHTML=html;
+  }
+  // keep a gentle idle wave going while visible; drop to ~15fps when nothing is happening
+  if(busy)BUB.raf=requestAnimationFrame(_bubbleTick);
+  else BUB._idle=setTimeout(function(){if(!BUB.raf)BUB.raf=requestAnimationFrame(_bubbleTick);},66);
+}
+document.addEventListener('visibilitychange',function(){if(!document.hidden&&!BUB.raf&&BUB.key)BUB.raf=requestAnimationFrame(_bubbleTick);});
 function renderStats(){
   renderHero();
   const cur=getCurrentCurrency();
@@ -1142,6 +1257,7 @@ const total=snapExpenses.reduce(function(s,e){
   return s + convertViaUSD(Number(e.amount), e.currency||cur, cur, usdRates);
 },0);
 const fairShare=snapMembers.length>0?total/snapMembers.length:0;
+try{renderBubbles(snapMembers,paid,owed);}catch(e){console.error('renderBubbles failed:',e);}
 list.innerHTML="";
 if(multiCurrency){const note=document.createElement("div");note.style.cssText="font-size:11px;color:var(--text2);margin-bottom:8px;padding:6px 10px;background:var(--accent-dim);border-radius:8px;text-align:center;";note.textContent="💱 Amounts converted to "+cur+" at historical rates (date of expense)";list.appendChild(note);}
 const balances=[];
