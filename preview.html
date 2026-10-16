@@ -441,6 +441,7 @@ input,select,textarea{font-family:inherit}
 <div class="stat-item"><div class="stat-value" id="stat-balance">—</div><div class="stat-label">My Balance</div></div>
 <div class="stat-item"><div class="stat-value" id="stat-count">0</div><div class="stat-label">Expenses</div></div>
 </div>
+<div class="splits-warning" id="fx-warning"><span class="splits-warning-text">⚠️ Couldn't get exchange rates, so foreign-currency expenses aren't converted yet. Balances may be off.</span><button class="splits-recalc-btn" onclick="retryRates()">Retry</button></div>
 <div class="splits-warning" id="splits-warning"><span class="splits-warning-text">⚠️ Split totals may be off — a member likely joined after some expenses were added.</span><button class="splits-recalc-btn" onclick="handleRecalcAllSplits()">Fix Now</button></div>
 <div id="balance-list"></div>
 <div class="sub-header">Settle up</div>
@@ -1193,31 +1194,33 @@ const _fxCache = {};
 
 async function getHistoricalRates(date) {
   if(_fxCache[date]) return _fxCache[date];
-  try {
-    // frankfurter.app provides free historical rates
-    const url = 'https://api.frankfurter.app/' + date + '?from=USD';
-    const res = await fetch(url);
-    const data = await res.json();
-    if(data.rates) {
-      // Add USD itself
-      data.rates['USD'] = 1;
-      _fxCache[date] = data.rates;
-      return data.rates;
-    }
-  } catch(e) {}
+  // Frankfurter (ECB daily reference rates). Weekends/holidays return the prior business day.
+  const urls=['https://api.frankfurter.app/'+date+'?from=USD','https://api.frankfurter.dev/v1/'+date+'?base=USD'];
+  for(const url of urls){
+    try {
+      const res = await fetch(url);
+      if(!res.ok) continue;
+      const data = await res.json();
+      if(data && data.rates) {
+        data.rates['USD'] = 1;
+        _fxCache[date] = data.rates;
+        return data.rates;
+      }
+    } catch(e) {}
+  }
   return null;
 }
 
-async function prefetchRatesForExpenses(expenses) {
-  // Get unique dates for non-base-currency expenses
-  const dates = [...new Set(
-    expenses
-      .filter(e => e.currency && e.currency !== 'USD')
-      .map(e => e.expense_date)
-  )];
-  // Fetch all in parallel
+// Fetches the day's rates for every expense not in the trip's main currency.
+// Returns the list of dates that still have no rates (so the UI can warn instead of guessing).
+async function prefetchRatesForExpenses(expenses, base) {
+  const need = expenses.filter(e => (e.currency || base) !== base);
+  const dates = [...new Set(need.map(e => e.expense_date))];
   await Promise.all(dates.map(d => getHistoricalRates(d)));
+  return dates.filter(d => !_fxCache[d]);
 }
+function tripCurrency(){const t=(state.trips||[]).find(function(x){return x.id===state.currentTripId;});return (t&&t.base_currency)||'USD';}
+function retryRates(){Object.keys(_fxCache).forEach(function(k){if(!_fxCache[k])delete _fxCache[k];});renderBalance();}
 
 function convertViaUSD(amount, fromCur, toCur, usdRates) {
   if(fromCur === toCur || !usdRates) return amount;
@@ -1241,13 +1244,13 @@ const list=$("balance-list");
 const sl=$("settle-list");
 list.innerHTML='<div style="padding:20px;text-align:center;color:var(--text3);font-size:13px"><span class="spinner" style="border-top-color:var(--text3);margin-right:8px;vertical-align:middle"></span>Calculating...</div>';
 sl.innerHTML='';
-const cur=getCurrentCurrency();
+const cur=tripCurrency();
 const paid={};const owed={};
 snapMembers.forEach(function(m){paid[m.user_id]=0;owed[m.user_id]=0;});
 // Fetch exchange rates for multi-currency conversion
 const multiCurrency = snapExpenses.some(function(e){return e.currency && e.currency !== cur;});
 // Prefetch all historical rates in parallel
-await prefetchRatesForExpenses(snapExpenses);
+const missingRates = await prefetchRatesForExpenses(snapExpenses, cur);
 // If a newer render started while we were fetching rates, abandon this one
 if(myRenderId !== _balanceRenderId) return;
 snapExpenses.forEach(function(exp){
@@ -1266,9 +1269,21 @@ const total=snapExpenses.reduce(function(s,e){
   return s + convertViaUSD(Number(e.amount), e.currency||cur, cur, usdRates);
 },0);
 const fairShare=snapMembers.length>0?total/snapMembers.length:0;
+// Header stats in the trip's currency, each expense converted at its own day's rate. Pay-backs aren't spending.
+(function(){
+  var spendTotal=0,spendCount=0;
+  snapExpenses.forEach(function(e){if(isSettleUp(e))return;spendCount++;spendTotal+=convertViaUSD(Number(e.amount),e.currency||cur,cur,_fxCache[e.expense_date]||null);});
+  $("stat-total").textContent=fmt(spendTotal,cur);
+  $("stat-per").textContent=fmt(spendTotal/(snapMembers.length||1),cur);
+  $("stat-count").textContent=spendCount;
+  if(state.user&&paid[state.user.id]!==undefined){var myNet=(paid[state.user.id]||0)-(owed[state.user.id]||0);var el=$("stat-balance");if(el){el.textContent=(myNet>=0?'+':'')+fmt(myNet,cur);el.style.color=myNet>0.005?'var(--success)':myNet<-0.005?'var(--danger)':'var(--text2)';}}
+})();
+var fxw=$("fx-warning");if(fxw)fxw.classList.toggle("visible",missingRates.length>0);
+if(missingRates.length&&!renderBalance._warned){renderBalance._warned=true;toast("Couldn't get exchange rates. Balances may be off.","error",5000);}
+if(!missingRates.length)renderBalance._warned=false;
 try{renderBubbles(snapMembers,paid,owed);}catch(e){console.error('renderBubbles failed:',e);}
 list.innerHTML="";
-if(multiCurrency){const note=document.createElement("div");note.style.cssText="font-size:11px;color:var(--text2);margin-bottom:8px;padding:6px 10px;background:var(--accent-dim);border-radius:8px;text-align:center;";note.textContent="💱 Amounts converted to "+cur+" at historical rates (date of expense)";list.appendChild(note);}
+if(multiCurrency){const note=document.createElement("div");note.style.cssText="font-size:11px;color:var(--text2);margin-bottom:8px;padding:6px 10px;background:var(--accent-dim);border-radius:8px;text-align:center;";note.textContent="💱 Shown in "+cur+". Other currencies converted at each expense's own day rate.";list.appendChild(note);}
 const balances=[];
 // Bar scale: the biggest "paid" or "share" in the trip fills the bar. Pink = paid, navy line = their share.
 var _scale=0;snapMembers.forEach(function(m){_scale=Math.max(_scale,paid[m.user_id]||0,owed[m.user_id]||0);});
@@ -1599,6 +1614,8 @@ async function handleSaveExpense(){
       emoji: _editEmoji,
       currency: cur
     }).eq('id', _editingExpenseId);
+    // Keep split_type in sync so Recalculate won't reset a custom split (only if the column exists).
+    if(!error){var _orig=(state.expenses||[]).find(function(x){return x.id===_editingExpenseId;});if(_orig&&Object.prototype.hasOwnProperty.call(_orig,'split_type')){await sb.from('expenses').update({split_type:_editSplitMode}).eq('id',_editingExpenseId);}}
     if(error) throw error;
     await sb.rpc('insert_expense_splits', {p_expense_id: _editingExpenseId, p_splits: splits});
     toast('Expense updated!', 'success');
