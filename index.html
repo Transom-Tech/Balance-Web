@@ -307,7 +307,20 @@ input,select,textarea{font-family:inherit}
 /* ══════════════════════════════════════════════
    RESPONSIVE
 ══════════════════════════════════════════════ */
-@media(max-width:1100px){.main-content{grid-template-columns:320px minmax(0,1fr) 320px}}
+/* Medium windows: Expenses gets the wide column; Log + Balances stack on the right */
+@media(min-width:761px) and (max-width:1179px){
+  .main-content{grid-template-columns:minmax(0,1fr) 340px;grid-template-areas:"exp log" "exp bal"}
+  #mid-panel{grid-area:exp}#left-panel{grid-area:log}#right-panel{grid-area:bal}
+}
+/* Narrow desktop windows: one column, Expenses first */
+@media(min-width:761px) and (max-width:939px){
+  .main-content{grid-template-columns:minmax(0,1fr);grid-template-areas:"exp" "log" "bal";max-width:720px}
+}
+/* Wide screens: banner becomes a card the same width as the content, so the photo isn't blown up edge to edge */
+@media(min-width:1180px){
+  .trip-hero{width:calc(100% - 32px);max-width:1328px;margin:16px auto 0;border-radius:32px}
+  .main-content{max-width:1360px}
+}
 
 @media(min-width:761px){
   .trip-hero{padding:16px 28px 70px}
