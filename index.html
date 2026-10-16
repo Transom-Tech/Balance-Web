@@ -562,7 +562,9 @@ function toast(msg,type='info',dur=3500){
   const w=$('toast-wrap'),d=document.createElement('div');
   d.className='toast '+type;
   const icons={success:'✓',error:'✗',info:'ℹ'};
-  d.innerHTML='<span>'+icons[type]+'</span><span>'+msg+'</span>';
+  const ic=document.createElement('span');ic.textContent=icons[type]||'';
+  const tx=document.createElement('span');tx.textContent=String(msg==null?'':msg);
+  d.appendChild(ic);d.appendChild(tx);
   w.appendChild(d);
   setTimeout(()=>{d.style.animation='tOut .3s ease forwards';setTimeout(()=>d.remove(),300);},dur);
 }
@@ -1196,6 +1198,15 @@ function _bubbleTick(now){
   else BUB._idle=setTimeout(function(){if(!BUB.raf)BUB.raf=requestAnimationFrame(_bubbleTick);},66);
 }
 document.addEventListener('visibilitychange',function(){if(!document.hidden&&!BUB.raf&&BUB.key)BUB.raf=requestAnimationFrame(_bubbleTick);});
+// Split an amount into cents exactly: leftover cents go to the payer first (if included), then in list order.
+// e.g. 100.00 three ways -> 33.34 / 33.33 / 33.33, always summing to the exact amount.
+function splitEvenly(amount,userIds,payerId){
+  const ids=userIds.slice();
+  const pi=ids.indexOf(payerId);if(pi>0){ids.splice(pi,1);ids.unshift(payerId);}
+  const cents=Math.round(Number(amount)*100),n=ids.length;if(!n)return [];
+  const base=Math.floor(cents/n),rem=cents-base*n;
+  return ids.map(function(id,i){return {user_id:id,amount_owed:(base+(i<rem?1:0))/100};});
+}
 function isSettleUp(e){return /^Settle up:/.test((e&&e.description)||'');}
 function renderStats(){
   renderHero();
@@ -1224,7 +1235,7 @@ function renderStats(){
 }
 function setSplit(mode){state.splitMode=mode;$("split-equal-btn").classList.toggle("active",mode==="equal");$("split-custom-btn").classList.toggle("active",mode==="custom");if(mode==="custom"){show("custom-members-wrap");renderMemberChecks();}else hide("custom-members-wrap");}
 function updateShares(){if(state.splitMode!=="custom")return;const amt=parseFloat($("exp-amount").value)||0;const checks=[...document.querySelectorAll("#member-checks input:checked")];const share=checks.length>0?amt/checks.length:0;const cur=getCurrentCurrency();checks.forEach(cb=>{const el=$("share-"+cb.value);if(el)el.textContent=fmt(share,cur);});document.querySelectorAll("#member-checks input:not(:checked)").forEach(cb=>{const el=$("share-"+cb.value);if(el)el.textContent=fmt(0,cur);});}
-function renderMemberChecks(){const wrap=$("member-checks");wrap.innerHTML="";const cur=getCurrentCurrency();const amt=parseFloat($("exp-amount").value)||0;const share=state.members.length>0?amt/state.members.length:0;state.members.forEach(function(m){const n=getName(m.profile);const row=document.createElement("label");row.className="mcheck-row";row.innerHTML="<input type=\"checkbox\" value=\""+m.user_id+"\" checked onchange=\"updateShares()\"><span class=\"mname\">"+n+"</span><span class=\"mshare\" id=\"share-"+m.user_id+"\">"+fmt(share,cur)+"</span>";wrap.appendChild(row);});}
+function renderMemberChecks(){const wrap=$("member-checks");wrap.innerHTML="";const cur=getCurrentCurrency();const amt=parseFloat($("exp-amount").value)||0;const share=state.members.length>0?amt/state.members.length:0;state.members.forEach(function(m){const n=getName(m.profile);const row=document.createElement("label");row.className="mcheck-row";row.innerHTML="<input type=\"checkbox\" value=\""+m.user_id+"\" checked onchange=\"updateShares()\"><span class=\"mname\">"+_esc(n)+"</span><span class=\"mshare\" id=\"share-"+m.user_id+"\">"+fmt(share,cur)+"</span>";wrap.appendChild(row);});}
 function renderExpenseForm(){hide("no-trip-left");show("expense-form-wrap");_selectedEmoji="🧾";const _eb=$("emoji-btn");if(_eb)_eb.textContent="🧾";$("exp-date").value=todayStr();const pb=$("exp-paidby");pb.innerHTML="";state.members.forEach(function(m){const o=document.createElement("option");o.value=m.user_id;const n=getName(m.profile);o.textContent=n+(m.user_id===state.user.id?" (you)":"");if(m.user_id===state.user.id)o.selected=true;pb.appendChild(o);});renderMemberChecks();}
 function renderExpenseList(){
   hide("no-trip-mid");show("expense-list-wrap");
@@ -1247,10 +1258,10 @@ function renderExpenseList(){
     card.dataset.expId=exp.id;
     card.innerHTML=
       "<div class=\"expense-card-main\">"+
-        "<div class=\"expense-emoji\">"+emojiFor(exp.description,exp.emoji)+"</div>"+
+        "<div class=\"expense-emoji\">"+_esc(emojiFor(exp.description,exp.emoji))+"</div>"+
         "<div class=\"expense-info\">"+
-          "<div class=\"expense-desc\">"+exp.description+"</div>"+
-          "<div class=\"expense-meta\">"+(payer&&payer.user_id===state.user.id?"You":payerName.split(" ")[0])+" paid &middot; "+fmtDate(exp.expense_date).replace(", "+new Date().getFullYear(),"")+"</div>"+
+          "<div class=\"expense-desc\">"+_esc(exp.description)+"</div>"+
+          "<div class=\"expense-meta\">"+(payer&&payer.user_id===state.user.id?"You":_esc(payerName.split(" ")[0]))+" paid &middot; "+fmtDate(exp.expense_date).replace(", "+new Date().getFullYear(),"")+"</div>"+
         "</div>"+
         "<div class=\"expense-right\">"+
           "<div class=\"expense-amount\">"+fmt(exp.amount,exp.currency||cur)+"</div>"+
@@ -1468,8 +1479,7 @@ async function handleRecalcAllSplits(){
   try{
     let count=0;
     for(const exp of _recalc){
-      const shareAmt=Number(exp.amount)/state.members.length;
-      const splits=state.members.map(function(m){return {user_id:m.user_id,amount_owed:Math.round(shareAmt*100)/100};});
+      const splits=splitEvenly(exp.amount,state.members.map(function(m){return m.user_id;}),exp.paid_by);
       await sb.from('expense_splits').delete().eq('expense_id',exp.id);
       const {error}=await sb.from('expense_splits').insert(
         splits.map(function(s){return {expense_id:exp.id,user_id:s.user_id,amount_owed:s.amount_owed};})
@@ -1483,8 +1493,7 @@ async function handleRecalcAllSplits(){
     // Fallback: try via RPC if direct table access is blocked by RLS
     try{
       for(const exp of _recalc){
-        const shareAmt=Number(exp.amount)/state.members.length;
-        const splits=state.members.map(function(m){return {user_id:m.user_id,amount_owed:Math.round(shareAmt*100)/100};});
+        const splits=splitEvenly(exp.amount,state.members.map(function(m){return m.user_id;}),exp.paid_by);
         await sb.rpc('insert_expense_splits',{p_expense_id:exp.id,p_splits:splits});
       }
       toast('Splits recalculated for '+_recalc.length+' expenses across '+state.members.length+' members.','success');
@@ -1540,8 +1549,7 @@ if(expErr)throw expErr;
 let splitMembers=state.members;
 if(state.splitMode==="custom"){const checks=[...document.querySelectorAll("#member-checks input:checked")];splitMembers=state.members.filter(function(m){return checks.some(function(c){return c.value===m.user_id;});});}
 if(splitMembers.length===0)splitMembers=state.members;
-const shareAmt=amt/splitMembers.length;
-const splits=splitMembers.map(function(m){return {user_id:m.user_id,amount_owed:Math.round(shareAmt*100)/100};});
+const splits=splitEvenly(amt,splitMembers.map(function(m){return m.user_id;}),paidBy);
 const {error:spErr}=await sb.rpc("insert_expense_splits",{p_expense_id:expId,p_splits:splits});
 if(spErr)throw spErr;
 const _saveCur = getCurrentCurrency();
@@ -1585,7 +1593,7 @@ function renderEditMemberChecks(selectedIds){
     const isChecked = checkedIds.indexOf(m.user_id) > -1;
     const row = document.createElement('label');
     row.className = 'mcheck-row';
-    row.innerHTML = '<input type="checkbox" value="' + m.user_id + '"' + (isChecked ? ' checked' : '') + ' onchange="updateEditShares()"><span class="mname">' + n + '</span><span class="mshare" id="edit-share-' + m.user_id + '">' + fmt(isChecked ? share : 0, cur) + '</span>';
+    row.innerHTML = '<input type="checkbox" value="' + m.user_id + '"' + (isChecked ? ' checked' : '') + ' onchange="updateEditShares()"><span class="mname">' + _esc(n) + '</span><span class="mshare" id="edit-share-' + m.user_id + '">' + fmt(isChecked ? share : 0, cur) + '</span>';
     wrap.appendChild(row);
   });
 }
@@ -1678,11 +1686,9 @@ async function handleSaveExpense(){
   if(_editSplitMode === 'custom'){
     const checked = [...document.querySelectorAll('#edit-member-checks input:checked')];
     if(checked.length === 0){ toast('Please select at least one person.','error'); return; }
-    const share = Math.round((amt / checked.length) * 100) / 100;
-    splits = checked.map(function(cb){ return {user_id: cb.value, amount_owed: share}; });
+    splits = splitEvenly(amt, checked.map(function(cb){ return cb.value; }), paidBy);
   } else {
-    const shareAmt = Math.round((amt / state.members.length) * 100) / 100;
-    splits = state.members.map(function(m){ return {user_id: m.user_id, amount_owed: shareAmt}; });
+    splits = splitEvenly(amt, state.members.map(function(m){ return m.user_id; }), paidBy);
   }
   const saveBtn = document.querySelector('#edit-expense-modal .btn-primary');
   if(saveBtn){ saveBtn.disabled = true; saveBtn.textContent = 'Saving...'; }

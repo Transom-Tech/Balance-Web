@@ -41,6 +41,6 @@ Check any UI change at 390px, ~900px, ~1100px and 1920px.
 
 **Testing without real data:** load `index.html` in headless Chromium and intercept the supabase-js URL with a small stub that implements `createClient()` → `auth.getSession`, `onAuthStateChange`, a chainable `from()` builder returning fixture rows, `rpc`, `storage`, and `channel`. That's enough to render every screen and click through flows. Block other network requests, or fulfill Frankfurter with fixed rates to test currency handling.
 
-## Known gaps
-- Equal splits round each share to cents independently, so totals can drift by a cent or two.
-- Expense description text isn't escaped everywhere in older render code. Escape anything you touch.
+## Conventions added later
+- **Splits:** always build equal splits with `splitEvenly(amount, userIds, payerId)`. It works in whole cents and gives leftover cents to the payer, so splits always sum to the exact amount.
+- **User text:** wrap anything user-entered (descriptions, names, trip names, emoji) in `_esc()` before it goes into `innerHTML`. `toast()` sets its message as plain text, so pass plain strings.
