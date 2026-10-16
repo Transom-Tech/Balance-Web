@@ -217,18 +217,23 @@ input,select,textarea{font-family:inherit}
 .bname{font-size:15px;font-weight:700;flex:1}
 .bnet{font-size:15px;font-weight:800}
 .bnet.pos{color:var(--success)}.bnet.neg{color:#8f2a4b}.bnet.zero{color:var(--text3)}
-.bbar-wrap{width:100%;height:6px;background:var(--bg4);border-radius:3px;overflow:hidden;margin-bottom:5px}
-.bbar{height:100%;border-radius:3px;transition:width .5s ease}
-.bsub{display:flex;justify-content:space-between;font-size:12px;color:var(--text2)}
-.settle-row{display:flex;flex-direction:column;gap:8px;margin:6px 12px;padding:14px 16px;background:var(--bg3);border-radius:18px}
+.bbar-wrap{position:relative;width:100%;height:10px;background:var(--bg4);border-radius:5px;margin-bottom:6px}
+.bbar{position:absolute;left:0;top:0;bottom:0;border-radius:5px;background:var(--pink);transition:width .5s ease}
+.bmark{position:absolute;top:-4px;bottom:-4px;width:2.5px;margin-left:-1.25px;border-radius:2px;background:var(--navy)}
+.bsub{display:flex;justify-content:space-between;font-size:12.5px;color:var(--text2)}
+.bal-legend{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);padding:2px 22px 6px}
+.bal-legend i{display:inline-block;width:2.5px;height:12px;border-radius:2px;background:var(--navy)}
+.settle-row{display:flex;align-items:center;gap:12px;margin:6px 12px;padding:14px 14px;background:var(--bg3);border-radius:18px;flex-wrap:wrap}
 .settle-row:last-child{margin-bottom:16px}
-.settle-row-top{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;font-size:15px}
-.sfrom{font-weight:800;color:var(--text);white-space:nowrap}
-.sarrow{color:var(--text2);font-size:13px;font-weight:500;white-space:nowrap}
-.sto{font-weight:800;color:var(--text);white-space:nowrap}
-.settle-row-bottom{display:flex;align-items:center;justify-content:space-between;padding-top:8px;border-top:1px solid var(--border)}
-.settle-label{font-size:13px;color:var(--text2);font-weight:600}
-.samount{font-weight:800;background:var(--bg2);padding:5px 12px;border-radius:99px;font-size:15px;white-space:nowrap;color:var(--text)}
+.st-who{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.st-line{font-size:15px;font-weight:600;color:var(--text2)}
+.st-line b{font-weight:800;color:var(--text)}
+.samount{font-weight:800;font-size:20px;letter-spacing:-.4px;white-space:nowrap;color:var(--text)}
+.st-paid{padding:9px 14px;border-radius:99px;border:none;background:var(--navy);color:#fff;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:inherit;min-height:40px}
+.st-paid.confirm{background:var(--pink);color:var(--ink)}
+.st-paid:disabled{opacity:.6}
+.settle-empty{margin:6px 12px 16px;padding:18px;text-align:center;background:var(--bg3);border-radius:18px;font-size:15px;font-weight:700;color:var(--text)}
+.settle-empty span{display:block;font-size:13px;font-weight:500;color:var(--text2);margin-top:2px}
 
 /* ── Split Warning Banner ──────────────────────────────── */
 .splits-warning{display:none;margin:4px 12px 8px;padding:10px 12px;background:#fff4e0;border-radius:14px;font-size:13px;color:#6b4100;align-items:center;gap:8px}
@@ -438,7 +443,7 @@ input,select,textarea{font-family:inherit}
 </div>
 <div class="splits-warning" id="splits-warning"><span class="splits-warning-text">⚠️ Split totals may be off — a member likely joined after some expenses were added.</span><button class="splits-recalc-btn" onclick="handleRecalcAllSplits()">Fix Now</button></div>
 <div id="balance-list"></div>
-<div class="sub-header">Settlements</div>
+<div class="sub-header">Settle up</div>
 <div id="settle-list"></div>
 </div></div>
 </div></div>
@@ -1261,15 +1266,21 @@ try{renderBubbles(snapMembers,paid,owed);}catch(e){console.error('renderBubbles 
 list.innerHTML="";
 if(multiCurrency){const note=document.createElement("div");note.style.cssText="font-size:11px;color:var(--text2);margin-bottom:8px;padding:6px 10px;background:var(--accent-dim);border-radius:8px;text-align:center;";note.textContent="💱 Amounts converted to "+cur+" at historical rates (date of expense)";list.appendChild(note);}
 const balances=[];
+// Bar scale: the biggest "paid" or "share" in the trip fills the bar. Pink = paid, navy line = their share.
+var _scale=0;snapMembers.forEach(function(m){_scale=Math.max(_scale,paid[m.user_id]||0,owed[m.user_id]||0);});
+if(snapMembers.length){const lg=document.createElement("div");lg.className="bal-legend";lg.innerHTML="Pink bar = paid &middot; <i></i> = their share";list.appendChild(lg);}
 snapMembers.forEach(function(m){
 const n=getName(m.profile);const p=paid[m.user_id]||0;const o=owed[m.user_id]||0;
 const net=p-o;balances.push({uid:m.user_id,name:n,paid:p,owed:o,net:net});
 const card=document.createElement("div");card.className="balance-card";
 const cls=net>0.005?"pos":net<-0.005?"neg":"zero";
-const netStr=(net>=0?"+":"")+fmt(net,cur);
-const barPct=total>0?Math.min(100,Math.abs(p/total)*100):0;
-const barColor=net>0.005?"var(--success)":net<-0.005?"var(--danger)":"var(--text3)";
-card.innerHTML="<div class=\"brow\"><div class=\"bavatar\" style=\"background:"+avatarColor(n)+"\">"+getInitials(n)+"</div><span class=\"bname\">"+n+"</span><span class=\"bnet "+cls+"\">"+netStr+"</span></div>"+"<div class=\"bbar-wrap\"><div class=\"bbar\" style=\"width:"+barPct+"%;background:"+barColor+"\"></div></div>"+"<div class=\"bsub\"><span>Paid: "+fmt(p,cur)+"</span><span>Share: "+fmt(o,cur)+"</span></div>";
+const netStr=Math.abs(net)<0.005?"Even":(net>0?"+":"")+fmt(net,cur);
+const fillPct=_scale>0?Math.min(100,p/_scale*100):0;
+const markPct=_scale>0?Math.min(100,o/_scale*100):0;
+const me=m.user_id===state.user.id;
+card.innerHTML="<div class=\"brow\"><div class=\"bavatar\" style=\"background:"+avatarColor(n)+"\">"+_esc(getInitials(n).toUpperCase())+"</div><span class=\"bname\">"+_esc(n)+(me?" <span style=\"font-weight:500;color:var(--text2)\">(you)</span>":"")+"</span><span class=\"bnet "+cls+"\">"+netStr+"</span></div>"+
+  "<div class=\"bbar-wrap\"><div class=\"bbar\" style=\"width:"+fillPct.toFixed(1)+"%\"></div><div class=\"bmark\" style=\"left:"+markPct.toFixed(1)+"%\"></div></div>"+
+  "<div class=\"bsub\"><span>Paid "+fmt(p,cur)+"</span><span>Share "+fmt(o,cur)+"</span></div>";
 list.appendChild(card);});
 renderSettlements(balances,cur);
 checkSplitDrift();}
@@ -1286,7 +1297,7 @@ const txns=[];
 while(cred.length&&debt.length){
 const c=cred[0],d=debt[0];
 const amt=Math.min(c.amount,d.amount);
-txns.push({from:d.name,to:c.name,amount:amt});
+txns.push({from:d.name,to:c.name,fromId:d.uid,toId:c.uid,amount:amt});
 c.amount-=amt;d.amount-=amt;
 if(c.amount<0.005)cred.shift();
 if(d.amount<0.005)debt.shift();
@@ -1295,11 +1306,38 @@ return txns;}
 function renderSettlements(balances,cur){
 const txns=calcSettlements(balances);
 const sl=$("settle-list");sl.innerHTML="";
-if(!txns.length){sl.innerHTML="<div style=\"padding:16px;text-align:center;color:var(--text3);font-size:13px\">\u2705 All settled up!</div>";return;}
+if(!txns.length){sl.innerHTML="<div class=\"settle-empty\">Everyone's square.<span>Nothing to pay back right now.</span></div>";return;}
+function shortName(id,full){return id===state.user.id?"You":String(full||"").split(" ")[0];}
 txns.forEach(function(t){
 const row=document.createElement("div");row.className="settle-row";
-row.innerHTML="<div class=\"settle-row-top\"><span class=\"sfrom\">"+t.from+"</span><span class=\"sarrow\">owes</span><span class=\"sto\">"+t.to+"</span></div><div class=\"settle-row-bottom\"><span class=\"settle-label\">Amount to transfer</span><span class=\"samount\">"+fmt(t.amount,cur)+"</span></div>";
+const fromN=shortName(t.fromId,t.from),toN=shortName(t.toId,t.to);
+const verb=fromN==="You"?"pay":"pays";
+row.innerHTML="<div class=\"st-who\"><span class=\"st-line\"><b>"+_esc(fromN)+"</b> "+verb+" <b>"+_esc(toN==="You"?"you":toN)+"</b></span><span class=\"samount\">"+fmt(t.amount,cur)+"</span></div>";
+const btn=document.createElement("button");btn.type="button";btn.className="st-paid";btn.textContent="Mark as paid";
+btn.onclick=function(){handleMarkSettled(btn,t,cur);};
+row.appendChild(btn);
 sl.appendChild(row);});}
+// Records a pay-back as a normal expense: paid by the debtor, owed entirely by the creditor.
+// That zeroes the pair out in Balances and shows up in the expense list as "Settle up".
+async function handleMarkSettled(btn,t,cur){
+  if(!btn.classList.contains("confirm")){
+    btn.classList.add("confirm");btn.textContent="Tap to confirm";
+    clearTimeout(btn._t);btn._t=setTimeout(function(){btn.classList.remove("confirm");btn.textContent="Mark as paid";},4000);
+    return;
+  }
+  clearTimeout(btn._t);btn.disabled=true;btn.innerHTML="<span class=\"spinner\"></span>";
+  const amt=Math.round(t.amount*100)/100;
+  try{
+    const desc="Settle up: "+String(t.from).split(" ")[0]+" \u2192 "+String(t.to).split(" ")[0];
+    const {data:expId,error:expErr}=await sb.rpc("create_expense_for_user",{p_trip_id:state.currentTripId,p_description:desc,p_amount:amt,p_currency:cur,p_paid_by:t.fromId,p_expense_date:todayStr(),p_split_type:"custom",p_created_by:state.user.id});
+    if(expErr)throw expErr;
+    const {error:spErr}=await sb.rpc("insert_expense_splits",{p_expense_id:expId,p_splits:[{user_id:t.toId,amount_owed:amt}]});
+    if(spErr)throw spErr;
+    await sb.from("expenses").update({emoji:"\ud83e\udd1d",currency:cur}).eq("id",expId);
+    toast("Recorded: "+desc.replace("Settle up: ","")+" "+fmt(amt,cur),"success");
+    await loadTripData();
+  }catch(e){toast("Error: "+e.message,"error");btn.disabled=false;btn.classList.remove("confirm");btn.textContent="Mark as paid";}
+}
 
 function checkSplitDrift(){
   // Flag only when split totals don't add up to the expense amount.
@@ -1325,9 +1363,11 @@ async function handleRecalcAllSplits(){
   // Recalculate ALL expenses as equal splits across all current members.
   // This is intentionally a full reset — it fixes stale splits when new members
   // join. Custom per-expense splits can be restored via Edit Expense afterwards.
+  // Skip pay-backs and custom splits: resetting those to an even split would corrupt balances.
+  const _recalc=state.expenses.filter(function(e){return e.split_type!=='custom'&&!/^Settle up:/.test(e.description||'');});
   try{
     let count=0;
-    for(const exp of state.expenses){
+    for(const exp of _recalc){
       const shareAmt=Number(exp.amount)/state.members.length;
       const splits=state.members.map(function(m){return {user_id:m.user_id,amount_owed:Math.round(shareAmt*100)/100};});
       await sb.from('expense_splits').delete().eq('expense_id',exp.id);
@@ -1342,12 +1382,12 @@ async function handleRecalcAllSplits(){
   }catch(e){
     // Fallback: try via RPC if direct table access is blocked by RLS
     try{
-      for(const exp of state.expenses){
+      for(const exp of _recalc){
         const shareAmt=Number(exp.amount)/state.members.length;
         const splits=state.members.map(function(m){return {user_id:m.user_id,amount_owed:Math.round(shareAmt*100)/100};});
         await sb.rpc('insert_expense_splits',{p_expense_id:exp.id,p_splits:splits});
       }
-      toast('Splits recalculated for '+state.expenses.length+' expenses across '+state.members.length+' members.','success');
+      toast('Splits recalculated for '+_recalc.length+' expenses across '+state.members.length+' members.','success');
       await loadTripData();
     }catch(e2){toast('Error recalculating: '+e2.message,'error');console.error('Recalc error:',e,e2);}
   }
