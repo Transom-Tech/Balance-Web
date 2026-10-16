@@ -1114,14 +1114,17 @@ function _bubbleTick(now){
   else BUB._idle=setTimeout(function(){if(!BUB.raf)BUB.raf=requestAnimationFrame(_bubbleTick);},66);
 }
 document.addEventListener('visibilitychange',function(){if(!document.hidden&&!BUB.raf&&BUB.key)BUB.raf=requestAnimationFrame(_bubbleTick);});
+function isSettleUp(e){return /^Settle up:/.test((e&&e.description)||'');}
 function renderStats(){
   renderHero();
   const cur=getCurrentCurrency();
-  const total=state.expenses.reduce((s,e)=>s+Number(e.amount),0);
+  // Pay-backs move money between people; they aren't trip spending.
+  const spend=state.expenses.filter(function(e){return !isSettleUp(e);});
+  const total=spend.reduce((s,e)=>s+Number(e.amount),0);
   const mc=state.members.length||1;
   $("stat-total").textContent=fmt(total,cur);
   $("stat-per").textContent=fmt(total/mc,cur);
-  $("stat-count").textContent=state.expenses.length;
+  $("stat-count").textContent=spend.length;
   // My balance: what I paid minus my fair share
   if(state.user&&state.members.length){
     let myPaid=0,myOwed=0;
@@ -1156,6 +1159,7 @@ function renderExpenseList(){
     const splits=exp.expense_splits||[];
     const myShare=splits.find(function(s){return s.user_id===state.user.id;});
     const perPerson=myShare?fmt(myShare.amount_owed,exp.currency||cur):"—";
+    const shareLine=isSettleUp(exp)?"Pay-back":"Your share: "+perPerson;
     const card=document.createElement("div");
     card.className="expense-card";
     card.dataset.expId=exp.id;
@@ -1168,7 +1172,7 @@ function renderExpenseList(){
         "</div>"+
         "<div class=\"expense-right\">"+
           "<div class=\"expense-amount\">"+fmt(exp.amount,exp.currency||cur)+"</div>"+
-          "<div class=\"expense-per\">Your share: "+perPerson+"</div>"+
+          "<div class=\"expense-per\">"+shareLine+"</div>"+
         "</div>"+
       "</div>"+
       "<div class=\"expense-card-actions\">"+
